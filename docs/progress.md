@@ -1,21 +1,42 @@
-# Step 1 done
+# Step 2 done
 
-Built the Python 3.11 uv scaffold, repository rules, package and future-step placeholders, central environment settings, three model roles with fallbacks, LangSmith run configuration, versioned smoke prompt, and offline unit tests plus an opt-in strong-provider live test. No agents, tools or UI are implemented.
+Implemented small Pydantic state contracts, repository-root loaders with controlled
+category/root-cause validation, platform profiles and scenario loading, ordered
+topology checks, diagnostic parsers (signatures, thread dumps, memory/load/swap,
+connections), secret masking and suspicious-line quarantine. Existing knowledge,
+profiles, topologies and scenario content were read without changes.
+
+Added a VectorStore protocol, Pinecone hosted inference/serverless ingestion and
+local Chroma persistence with its default embedding model. Ingestion upserts one
+vector per document ID. Hybrid search combines configured vector similarity and
+normalized signature overlap; routing requires corroboration for a known fix.
+Tool tracing carries case/version/model metadata and omits raw diagnostic payloads.
+No agents, graph execution or UI were added.
 
 Run from the repository root:
 
 ```sh
 uv sync
-# macOS: cp .env.example .env
-# Windows PowerShell: Copy-Item .env.example .env
-# Fill provider keys, model IDs, Nebius endpoint and LangSmith key in .env.
+# Configure .env: VECTOR_BACKEND=pinecone and PINECONE_API_KEY,
+# or VECTOR_BACKEND=chroma for local embeddings (initial model download required).
 uv run ruff check .
 uv run pytest
-uv run python -m flowmedic.smoke
+uv run python -m flowmedic.knowledge.ingest
+uv run python -m flowmedic.knowledge.try_search SC-001
+uv run python -m flowmedic.knowledge.try_search SC-007
+# Optional real-backend test:
+uv run pytest -m live tests/test_knowledge.py
 ```
 
-Missing provider keys skip their smoke calls; live calls and LangSmith trace uploads require configured credentials. Use `uv run pytest -m live` to opt into the strong-provider API test.
+Validation: lint and format checks passed; 28 offline tests passed, with 2 live
+tests deselected by default. Backend adapter and trace metadata tests use mocks.
+The configured Pinecone backend ingested all 30 documents successfully. SC-001
+ranked INC-003 first (0.712), followed by RB-02 (0.701) and INC-002 (0.695), but
+routed to similar rather than the fixture's expected known_fix. With query-signature
+coverage as overlap, two of four signatures matched INC-003. This is an observed
+retrieval limitation for later evaluation/tuning, not a changed golden answer.
+SC-007 routed to new_issue, with its best match below 0.60. Chroma is implemented;
+real Chroma model download/embedding has not been validated in this task.
 
-Validation: `uv sync` succeeded and created `uv.lock`; ruff lint and format checks passed; pytest reported 15 passed and 1 live test deselected. The smoke command exited successfully with all three roles skipped for missing API keys. Provider connectivity and LangSmith uploads remain unverified until credentials are configured.
-
-Next: platform profiles, anonymized topology, synthetic incidents and runbooks, and knowledge-repo ingestion/search. Later implement the agents, read-only tools and UI.
+Next: Step 3 triage intake, clarification, classification and evidence gathering.
+Preserve the read-only operations boundary and human execution/approval flow.

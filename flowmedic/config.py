@@ -4,8 +4,10 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 ModelRole = Literal["fast", "strong", "alt"]
 
@@ -16,7 +18,7 @@ class ConfigurationError(ValueError):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=Path(".env"), env_file_encoding="utf-8", extra="ignore"
+        env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
     )
 
     anthropic_api_key: SecretStr = SecretStr("")
@@ -30,11 +32,28 @@ class Settings(BaseSettings):
     pinecone_api_key: SecretStr = SecretStr("")
     pinecone_index: str = "flowmedic-kb"
     vector_backend: Literal["pinecone", "chroma"] = "pinecone"
+    embed_model: str = "multilingual-e5-large"
+    pinecone_cloud: str = "aws"
+    pinecone_region: str = "us-east-1"
+    chroma_path: Path = REPO_ROOT / "chroma_data"
+    kb_known_fix: float = Field(default=0.80, ge=0, le=1)
+    kb_similar: float = Field(default=0.60, ge=0, le=1)
+    kb_vector_weight: float = Field(default=0.6, ge=0, le=1)
+    kb_signature_weight: float = Field(default=0.4, ge=0, le=1)
     langsmith_tracing: bool = True
     langsmith_api_key: SecretStr = SecretStr("")
     langsmith_project: str = "flowmedic-dev"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     agent_version: str = "0.1.0"
+
+    @model_validator(mode="after")
+    def validate_retrieval(self) -> "Settings":
+        """Keep hybrid scores bounded and routing thresholds ordered."""
+        if abs(self.kb_vector_weight + self.kb_signature_weight - 1) > 1e-9:
+            raise ValueError("KB vector and signature weights must sum to 1")
+        if self.kb_similar > self.kb_known_fix:
+            raise ValueError("KB_SIMILAR must not exceed KB_KNOWN_FIX")
+        return self
 
     def provider_key(self, role: ModelRole) -> str:
         """Return a selected role's key, or name its missing environment variable."""

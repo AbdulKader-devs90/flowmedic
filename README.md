@@ -35,3 +35,35 @@ uv run pytest -m live
 Live tests call a real API and may incur charges; they are excluded by default. Keep `.env` local and never commit secrets.
 
 Two-laptop rule: **pull before work, commit and push after**. On each laptop, run `git pull` before making changes and `git add`, `git commit`, and `git push` after finishing. Keep provider keys in each laptop's local `.env`.
+
+Step 2 adds validated knowledge/scenario loaders, state models, topology checks,
+secret masking, diagnostic parsers, and hybrid retrieval. Agents, graph execution,
+and UI remain future steps. Seed content is read without modification.
+
+Configure `VECTOR_BACKEND=pinecone` and `PINECONE_API_KEY` in `.env` to use the
+shared index (`PINECONE_INDEX`). Ingestion creates a missing serverless index,
+uses hosted `EMBED_MODEL=multilingual-e5-large` embeddings, and upserts by document
+ID. The ingestion command is explicit approval to index the existing seed content.
+
+```sh
+uv run python -m flowmedic.knowledge.ingest
+uv run python -m flowmedic.knowledge.try_search SC-001
+uv run python -m flowmedic.knowledge.try_search SC-007
+```
+
+For a local backend, set `VECTOR_BACKEND=chroma` instead and run ingestion again.
+Chroma persists in `chroma_data/` and downloads its default local embedding model
+into `.cache/chroma/` on first use. It needs internet for that initial download,
+but no API key. All content/config paths resolve from the repository root.
+
+Hybrid scores use `KB_VECTOR_WEIGHT=0.6` and `KB_SIGNATURE_WEIGHT=0.4`.
+Signature overlap is the fraction of distinct extracted query signatures present
+in the document after code normalization. Version, when supplied, filters documents
+with incompatible version lists. `KB_KNOWN_FIX=0.80` requires a signature or explicit
+category corroboration; `KB_SIMILAR=0.60` returns similar candidates. The CLI uses
+only fixture platform/context, problem and logs, never expected diagnoses.
+
+Tools emit LangSmith spans when configured, with version/model/case metadata.
+Raw diagnostic arguments and results are omitted from spans; secrets are masked
+and suspicious instruction lines quarantined before embedding. The live backend
+test is opt-in: `uv run pytest -m live tests/test_knowledge.py`.
