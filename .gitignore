@@ -13,3 +13,4 @@ chroma_data/
 # Local embeddings, model downloads and development caches
 chroma_data/
 .cache/
+runs/

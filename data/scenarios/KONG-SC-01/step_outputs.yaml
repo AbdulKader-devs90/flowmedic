@@ -1,0 +1,20 @@
+steps:
+  - match: ["latency"]
+    status: done
+    output: |
+      access.log for POST /orders/v1/submit, last 15 min: upstream latency p50 48s, p95 61s; 504 count 212.
+  - match: ["/services"]
+    status: done
+    output: |
+      GET /services/orders-svc -> {"read_timeout": 60000, "connect_timeout": 60000, "write_timeout": 60000, "retries": 5}
+  - match: ["health"]
+    status: done
+    output: |
+      orders-svc logs: slow query on ORDERS table since 10:35 after an index was dropped in last night's DB change.
+  - match: ["verify"]
+    status: done
+    output: |
+      Index restored by the DBA at 11:05; upstream p95 1.2s; no 504s since 11:06.
+default:
+  status: skipped
+  output: "Not applicable in this environment."

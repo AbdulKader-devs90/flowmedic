@@ -26,3 +26,10 @@ How this project is built: Claude (planning, content, reviews, docs) writes one 
 - Chosen values: VEC_FLOOR=0.80, VEC_CEIL=0.86, weights 0.60 vector / 0.40 signatures, KB_KNOWN_FIX=0.60, KB_SIMILAR=0.40.
 - Result: route accuracy 11/11 and top-1 document accuracy 9/9 on the dev scenarios; 40 tests passed.
 - Caveat: tuned on the same 11 scenarios it is scored on, and the vector band (0.80-0.86) is narrow. The Week 4 golden set (40 cases) checks whether this generalizes.
+
+## Step 3: read-only log reader (MCP), vendor-doc research, Triage Agent (6 Nov 2026)
+- Prompt: `docs/prompts/step-03-triage-agent.md`
+- Result: FastMCP read-only log server (allowlisted roots, traversal and size checks, masking, flagged lines kept apart), Tavily vendor research with a model-knowledge fallback, and a LangGraph Triage Agent with interrupts for clarifying questions and log access. 89 tests passed. Validation output in `docs/step-03-validation.txt`.
+- Iteration: Codex found that Step 2's per-role provider change had not been built (strong was still hard-wired to Anthropic). A follow-up prompt moved all three roles to Nebius; the smoke test then answered on Qwen3-30B (0.55 s), DeepSeek-V4.1-Flash (0.84 s) and GLM-5.3 (1.04 s).
+- Demo results: SC-001 -> POOL, known_fix, verified steps from INC-003; SC-007 -> CONN, new_issue, six cited IBM Community steps; SC-009 -> CONN, known_fix (INC-013), injection line quarantined and password masked.
+- Review (Claude), carried into Step 4: topology never loaded (no environment), 16 first steps (unrelated runbook included), boilerplate risk/rollback text, unclear overall confidence (50%), and clarifying questions asked before reading logs (SC-007 asked for the platform twice).

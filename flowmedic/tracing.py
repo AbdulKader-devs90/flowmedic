@@ -7,7 +7,7 @@ from typing import ParamSpec, TypeVar
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tracers.langchain import LangChainTracer
-from langsmith import Client, trace
+from langsmith import Client, trace, tracing_context
 
 from flowmedic.config import get_settings
 
@@ -68,25 +68,50 @@ def traced_tool(function: Callable[P, T]) -> Callable[P, T]:
         key = settings.langsmith_api_key.get_secret_value()
         if not settings.langsmith_tracing or not key:
             return function(*args, **kwargs)
-        with trace(
-            name=function.__qualname__,
-            run_type="tool",
-            inputs={},
-            project_name=settings.langsmith_project,
-            client=Client(api_key=key, api_url=settings.langsmith_endpoint),
-            metadata={
-                "case_id": kwargs.get("case_id", _case_id.get()),
-                "prompt_version": "deterministic-v1",
-                "agent_version": settings.agent_version,
-                "model": (
-                    settings.embed_model
-                    if settings.vector_backend == "pinecone"
-                    else "all-MiniLM-L6-v2"
-                )
-                if function.__module__ == "flowmedic.tools.knowledge_repo"
-                else "none",
-            },
+        with (
+            tracing_context(enabled=True),
+            trace(
+                name=function.__qualname__,
+                run_type="tool",
+                inputs={},
+                project_name=settings.langsmith_project,
+                client=Client(api_key=key, api_url=settings.langsmith_endpoint),
+                metadata={
+                    "case_id": kwargs.get("case_id", _case_id.get()),
+                    "prompt_version": "deterministic-v1",
+                    "agent_version": settings.agent_version,
+                    "model": (
+                        settings.embed_model
+                        if settings.vector_backend == "pinecone"
+                        else "all-MiniLM-L6-v2"
+                    )
+                    if function.__module__ == "flowmedic.tools.knowledge_repo"
+                    else "none",
+                },
+            ),
         ):
             return function(*args, **kwargs)
 
     return wrapped
+
+
+@contextmanager
+def case_trace(config: RunnableConfig) -> Iterator[None]:
+    """Keep graph invocations and interrupt resumes under one case trace."""
+    settings = get_settings()
+    key = settings.langsmith_api_key.get_secret_value()
+    if not settings.langsmith_tracing or not key:
+        yield
+        return
+    with (
+        tracing_context(enabled=True),
+        trace(
+            name="triage",
+            run_type="chain",
+            inputs={"case_id": config.get("metadata", {}).get("case_id")},
+            metadata=config.get("metadata", {}),
+            project_name=settings.langsmith_project,
+            client=Client(api_key=key, api_url=settings.langsmith_endpoint),
+        ),
+    ):
+        yield

@@ -31,6 +31,7 @@ def main() -> int:
             "LangSmith tracing inactive: set LANGSMITH_TRACING=true "
             "and LANGSMITH_API_KEY."
         )
+    print("role | provider | model | reply | latency")
     failed = False
     roles: tuple[ModelRole, ...] = ("fast", "strong", "alt")
     for role in roles:
@@ -41,7 +42,10 @@ def main() -> int:
             continue
         try:
             model, reply, latency = smoke_call(role)
-            print(f"{role} | {model} | {reply.content} | {latency:.2f}s")
+            print(
+                f"{role} | {settings.provider_name(role)} | {model} | "
+                f"{reply.content} | {latency:.2f}s"
+            )
         except ConfigurationError as exc:
             print(f"FAIL {role}: {exc}")
             failed = True

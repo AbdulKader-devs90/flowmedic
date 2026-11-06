@@ -10,6 +10,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 ModelRole = Literal["fast", "strong", "alt"]
+Provider = Literal["nebius", "anthropic", "openai"]
 
 
 class ConfigurationError(ValueError):
@@ -20,6 +21,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
     )
+
+    fast_provider: Provider = "nebius"
+    strong_provider: Provider = "nebius"
+    alt_provider: Provider = "anthropic"
+    fast_model: str = ""
+    strong_model: str = ""
+    alt_model: str = ""
 
     anthropic_api_key: SecretStr = SecretStr("")
     anthropic_model: str = "claude-opus-5-5"
@@ -47,6 +55,10 @@ class Settings(BaseSettings):
     langsmith_project: str = "flowmedic-dev"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     agent_version: str = "0.1.0"
+    log_roots: list[Path] = Field(default_factory=list)
+    max_llm_calls: int = Field(default=25, ge=0, le=25)
+    log_transport: Literal["stdio", "inprocess"] = "stdio"
+    retry_backoff: float = Field(default=0.25, ge=0, le=10)
 
     @model_validator(mode="after")
     def validate_retrieval(self) -> "Settings":
@@ -59,33 +71,37 @@ class Settings(BaseSettings):
             raise ValueError("KB_SIMILAR must not exceed KB_KNOWN_FIX")
         return self
 
+    def provider_name(self, role: ModelRole) -> Provider:
+        """Resolve one role without coupling it to a particular vendor."""
+        if role not in ("fast", "strong", "alt"):
+            raise ValueError(f"Unknown model role: {role!r}; use fast, strong or alt.")
+        return getattr(self, f"{role}_provider")
+
     def provider_key(self, role: ModelRole) -> str:
-        """Return a selected role's key, or name its missing environment variable."""
-        field = {
-            "fast": "nebius_api_key",
-            "strong": "anthropic_api_key",
-            "alt": "openai_api_key",
-        }[role]
+        """Validate the key belonging to the role's configured provider."""
+        provider = self.provider_name(role)
+        field = f"{provider}_api_key"
         value: SecretStr = getattr(self, field)
         if not value.get_secret_value().strip():
             raise ConfigurationError(
-                f"Missing {field.upper()} for model role '{role}'."
+                f"Missing {field.upper()} for provider '{provider}' (role '{role}')."
             )
         return value.get_secret_value()
 
     def model_name(self, role: ModelRole) -> str:
-        """Validate and return the configured model identifier."""
-        field = {
-            "fast": "nebius_model",
-            "strong": "anthropic_model",
-            "alt": "openai_model",
-        }[role]
+        """Prefer a per-role model, then the selected provider's model."""
+        provider = self.provider_name(role)
+        override: str = getattr(self, f"{role}_model")
+        if override.strip():
+            return override.strip()
+        field = f"{provider}_model"
         value: str = getattr(self, field)
         if not value.strip():
             raise ConfigurationError(
-                f"Missing {field.upper()} for model role '{role}'."
+                f"Missing {role.upper()}_MODEL or {field.upper()} "
+                f"for provider '{provider}' (role '{role}')."
             )
-        return value
+        return value.strip()
 
 
 @lru_cache(maxsize=1)

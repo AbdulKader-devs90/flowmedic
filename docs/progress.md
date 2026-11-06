@@ -96,3 +96,101 @@ override the new defaults; .env.example documents all six parameters.
 
 Next: Step 3 triage intake, clarification, classification and evidence gathering.
 Preserve the read-only operations boundary and human execution/approval flow.
+
+## Step 3: triage graph, log MCP and vendor research
+
+Implemented the read-only FastMCP log server and a langchain-mcp-adapters stdio
+client. The same reader supplies in-process tests and a startup-only fallback.
+Allowed paths are restricted to scenario logs or configured LOG_ROOTS; the client
+narrows each server to the approved folder. Traversal, escaping symlinks, and files
+over 50 MB are rejected. Time filtering preserves original line references and
+continuation lines. Secrets, including multiline private keys, are masked;
+suspicious lines have separate flags and never enter classification or retrieval.
+
+Added Tavily research with trusted platform domains, one broader search for
+sparse results, one retry/backoff for search failures, and a strong-model fallback
+labelled `model` with a vendor support suggestion. Structured vendor findings
+validate citations against supplied results. Prompts distinguish incident facts
+from search examples and favor capability checks/supported upgrades over weakened
+cryptography. Unknown platforms can research the open web with an applicability
+gap rather than failing profile loading.
+
+Added an interruptible LangGraph StateGraph with InMemorySaver: structured intake,
+profile clarification (two rounds), log approval, evidence/parsers, controlled
+classification, hybrid KB routing, verified incident/runbook steps, vendor
+research, one evidence clarification loop, and deterministic synthesis. Approved
+logs can identify a missing platform only when exactly one profile has specific
+signature matches beyond generic exception/Oracle extraction. Explicit CLI answers
+are retained even before their slot is requested. Existing profiles, knowledge,
+parsers, redaction and topology walking are reused. No Planner or UI was added.
+
+Root-cause IDs are an enum from the existing vocabulary; classification includes
+taxonomy definitions and checks evidence references. Changes/destructive steps
+require risk and rollback. Model attempts, including repairs and vendor research,
+share MAX_LLM_CALLS (25 maximum). Structured errors repair once then stop cleanly;
+tool failures retry once then become confidence-reducing gaps. Known steps remain
+available if vendor research stops. One LangSmith case span contains graph/resume,
+node, model and tool children; the MCP adapter traces stdio calls in the parent
+process. Configured tracing is explicitly enabled without relying on dotenv being
+loaded into the process environment.
+
+Completed the omitted per-role provider configuration: FAST_PROVIDER,
+STRONG_PROVIDER and ALT_PROVIDER independently select nebius/anthropic/openai,
+defaulting to nebius/nebius/anthropic. FAST_MODEL/STRONG_MODEL/ALT_MODEL override the
+selected provider's model; otherwise its provider model setting is used. Key/model
+errors identify the provider and missing variable. Fallbacks are included only
+when the fallback role's provider has a key. Smoke output includes role, provider,
+model, reply and latency. The configured local Nebius models answered for all
+three roles; no credential changes were needed.
+
+Run from the repository root:
+
+```sh
+uv sync
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+uv run python -m flowmedic.smoke
+uv run python -m flowmedic.agents.triage.run SC-001 --answer version=10.15 --approve-logs
+uv run python -m flowmedic.agents.triage.run SC-007 --answer version=10.15 --answer os=linux --approve-logs
+uv run python -m flowmedic.agents.triage.run SC-009 --approve-logs
+# Optional real-model end-to-end test:
+uv run pytest -m live tests/test_triage.py
+```
+
+CLI results are displayed and saved under ignored `runs/<case_id>.json`.
+Non-interactive omissions are explicit skips and never silently approve logs.
+A null approved time window means the complete supplied export. Tests keep
+artifacts under `.cache/pytest` inside the repository. Offline verification:
+89 passed, 3 live tests deselected, including a real local MCP stdio round trip,
+provider/role combinations, root allowlists, SC-009 masking/quarantine, interrupted
+clarification, all route branches, unavailable Tavily, citation rejection, bounded
+repairs, tool retries, declined reads, and the full 25-call budget.
+
+Limitations: in-memory checkpoints survive only within the current CLI process.
+A named environment needs an actual reviewed topology; production labels are not
+silently mapped to sample-prod. Generic safeguards are attached to verified
+knowledge changes when the seed document supplies no recovery procedure: the
+engineer must define and approve the actual recovery before executing. Web
+citations enforce URL provenance, not an independent entailment proof; vendor
+hypotheses remain unconfirmed. The live test remains opt-in.
+
+Next: Step 4 Planner Agent, SQLite checkpoint persistence, environment memory and
+human-confirmed execution guidance. Preserve the read-only server boundary.
+
+
+Final demo observations (real configured Nebius models and services):
+
+| Scenario | Category | Route | Outcome |
+| --- | --- | --- | --- |
+| SC-001 | POOL | known_fix | INC-003 resolution plus RB-02/RB-04, source verified |
+| SC-007 | CONN | new_issue | SFTP algorithm mismatch; six cited steps from IBM community results |
+| SC-009 | CONN | known_fix | INC-013, password masked, injection quarantined |
+
+SC-001 reported a production environment for which no reviewed topology exists;
+this is a recorded gap, not a silent substitution of sample-prod. SC-007 first
+records the unanswered platform question, then identifies webMethods from the
+approved logs. These are development demonstrations, not held-out evaluation.
+Actual LangSmith API inspection confirmed a single case root with graph/model/tool
+children for all three demos. Lint and formatting passed. Full command output,
+with repository paths normalized to `<repo>`, is in [step-03-validation.txt](step-03-validation.txt).

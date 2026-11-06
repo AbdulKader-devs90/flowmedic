@@ -1,0 +1,37 @@
+# Engineer simulator: what the engineer would paste back for each plan step.
+# The first entry whose keywords all appear in the step text (case-insensitive) is used.
+# Synthetic and anonymized.
+steps:
+  - match: ["pool"]
+    status: done
+    output: |
+      Admin UI > Adapters > JDBC Adapter > Connections > OrdersApi.connections:OrdersDB_Pool
+      Min 0 | Max 15 | In use 15 | Available 0 | Block timeout 10000 ms | Waiting requests 37
+  - match: ["thread dump"]
+    status: done
+    output: |
+      is-node-a thread dump 10:44 (402 threads)
+        37  HTTP Handler  at com.wm.adapter.wmjdbc.connection.JDBCConnectionPool.getConnection
+        15  HTTP Handler  at oracle.jdbc.driver.T4CPreparedStatement.executeForRows (OrdersApi.db:insertOrder)
+       350  other
+  - match: ["long-running"]
+    status: done
+    output: |
+      DBA: sessions from machine is-node-a, program "JDBC Thin Client", user ORDERS_SVC
+        SID 1412  status ACTIVE  elapsed 00:07:41  sql: SELECT ... FROM ORDER_REPORT_V ... (ad-hoc report)
+        14 other sessions ACTIVE, all waiting on SID 1412 (enq: TX - row lock contention)
+  - match: ["session", "cancel"]
+    status: done
+    output: |
+      The report job owner confirmed it was a manual ad-hoc run. DBA killed SID 1412 at 10:49.
+  - match: ["disable", "enable"]
+    status: done
+    output: |
+      Connection disabled and enabled at 10:51. Pool now: In use 3 | Available 12 | Waiting 0.
+  - match: ["verify"]
+    status: done
+    output: |
+      Orders API returning 200 since 10:52. No ART.118.5053 in server.log since 10:50.
+default:
+  status: skipped
+  output: "Not applicable in this environment."

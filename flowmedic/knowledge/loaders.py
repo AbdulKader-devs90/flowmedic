@@ -129,16 +129,28 @@ def list_scenarios() -> list[str]:
     )
 
 
-def load_scenario(case_id: str) -> Scenario:
-    """Read a complete local scenario without interpreting expected answers."""
+def load_scenario(
+    case_id: str,
+    *,
+    include_logs: bool = True,
+    include_expected: bool = True,
+) -> Scenario:
+    """Read a local fixture; triage defers logs until approval and excludes labels."""
     path = _path(REPO_ROOT / "data/scenarios", case_id)
+    problem = (path / "problem.md").resolve(strict=True)
+    if not problem.is_relative_to(path.resolve()):
+        raise ValueError("Scenario problem escapes its folder")
     return Scenario(
         case_id=case_id,
-        problem=(path / "problem.md").read_text("utf-8"),
+        problem=problem.read_text("utf-8"),
         logs={
             str(p.relative_to(path / "logs")): p.read_text("utf-8")
             for p in sorted((path / "logs").rglob("*"))
             if p.is_file()
-        },
-        expected=json.loads((path / "expected.json").read_text("utf-8")),
+        }
+        if include_logs
+        else {},
+        expected=json.loads((path / "expected.json").read_text("utf-8"))
+        if include_expected
+        else {},
     )

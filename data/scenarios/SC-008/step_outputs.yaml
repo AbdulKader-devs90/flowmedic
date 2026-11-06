@@ -1,0 +1,49 @@
+# Engineer simulator for the multi-cause outage. The DB check reveals a blocking lock that the
+# first triage did not include, so the Planner should send the case back to triage once.
+steps:
+  - match: ["thread dump"]
+    status: done
+    output: |
+      is-node-b thread dump 10:41 (1,207 threads)
+        790  HTTP Handler at com.sun.crypto.provider.PBKDF2KeyImpl.deriveKey (client 10.0.0.68)
+        322  HTTP Handler at com.wm.app.b2b.server.jdbc.WmConnectionPool.getConnection
+         95  other
+  - match: ["blocking"]
+    status: done
+    output: |
+      DBA: blocking sessions
+        SID 877  machine is-node-b  program wrapper-java  status INACTIVE  holds TX lock on WMSERVICE
+        blocked: 214 sessions  wait: enq: TX - row lock contention  blocked for 127 minutes
+        SID 877 belongs to the IS process that was force-killed at 08:35 (two restarts ago)
+  - match: ["login has timed out"]
+    status: done
+    output: |
+      grep -c "Login has timed out" server.log  -> 41 (first 10:33:15, last 10:44:02)
+      grep -c "fail-fast" server.log            -> 6
+  - match: ["db"]
+    status: done
+    output: |
+      DBA: sessions of the IS schema by machine: is-node-a 38, is-node-b 251 (pool max 100). Listener log clean.
+  - match: ["gateway"]
+    status: done
+    output: |
+      Gateway analytics last 30 min: 92% of calls from api-gw to is-cluster use Basic auth; top API /customers/v1/profile 41k calls.
+  - match: ["throttle"]
+    status: done
+    output: |
+      Per-API throttle applied on the gateway for /customers/v1/profile (200 req/s) at 10:52.
+  - match: ["swap"]
+    status: done
+    output: |
+      free -m: Swap used 5980 of 8191 MB; vmstat si 512 so 470
+  - match: ["restart"]
+    status: done
+    output: |
+      Followed RB-14: traffic blocked, IS stopped, DBA killed SID 877, IS started 11:06, ping 200, traffic reopened 11:12.
+  - match: ["verify"]
+    status: done
+    output: |
+      11:30: threads 160 of 1200, no login timeouts since 11:07, deriveKey threads 3, load average 2.1.
+default:
+  status: skipped
+  output: "Not applicable in this environment."
