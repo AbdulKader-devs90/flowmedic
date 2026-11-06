@@ -30,6 +30,7 @@ class KnowledgeDoc(BaseModel):
     root_causes: list[str] = Field(default_factory=list)
     runbooks: list[str] = Field(default_factory=list)
     source: str | None = None
+    environment: str | None = None
     verified: bool = False
     body: str
 

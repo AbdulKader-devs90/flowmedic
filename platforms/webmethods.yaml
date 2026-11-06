@@ -67,3 +67,5 @@ read_only_checks:
 - thread dumps (jstack or kill -3)
 - grep of server.log and wrapper.log
 - JDBC pool test in Admin UI
+
+default_environment: sample-prod

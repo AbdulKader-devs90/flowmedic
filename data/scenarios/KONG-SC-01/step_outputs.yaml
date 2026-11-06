@@ -11,7 +11,7 @@ steps:
     status: done
     output: |
       orders-svc logs: slow query on ORDERS table since 10:35 after an index was dropped in last night's DB change.
-  - match: ["verify"]
+  - match: ["504", "confirm"]
     status: done
     output: |
       Index restored by the DBA at 11:05; upstream p95 1.2s; no 504s since 11:06.

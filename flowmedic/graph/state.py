@@ -106,10 +106,18 @@ class PlanStep(BaseModel):
 
     n: int = Field(ge=1)
     title: str
-    kind: StepKind
+    kind: StepKind = Field(
+        description=(
+            "read for observations/diagnostics; change for mutations; "
+            "destructive for irreversible mutations"
+        )
+    )
     command_or_action: str
     where: str
     expected_output: str
+    decision_rule: str = (
+        "If expected output matches, go to the next step; otherwise re-triage."
+    )
     risk: str | None = None
     rollback: str | None = None
     source: Source
@@ -167,6 +175,7 @@ class TriageResult(BaseModel):
     confidence: float = Field(ge=0, le=1)
     notes: str = ""
 
+    affected_component: str | None = None
     flags: list[str] = Field(default_factory=list)
 
 
@@ -178,6 +187,7 @@ class Classification(BaseModel):
     severity: Severity
     root_causes: list[RankedRootCause] = Field(default_factory=list, max_length=3)
     confidence: float = Field(ge=0, le=1)
+    affected_component: str | None = None
 
 
 class VendorFindings(BaseModel):
@@ -196,6 +206,7 @@ class TriageState(TypedDict, total=False):
     problem: str
     log_root: str
     context: TriageContext
+    confirmed_context: dict[str, Any]
     context_answers: dict[str, str]
     profile: dict[str, Any]
     topology: dict[str, Any]
@@ -218,3 +229,89 @@ class TriageState(TypedDict, total=False):
     related_components: list[str]
     first_steps: list[PlanStep]
     result: TriageResult
+
+
+def validate_specific_recovery(step: PlanStep) -> None:
+    """Reject absent, generic and observation-only recovery for a mutation."""
+    if step.kind == StepKind.READ:
+        return
+    for text in (step.risk or "", step.rollback or ""):
+        normalized = text.strip().lower().rstrip(".")
+        if (
+            not normalized
+            or normalized
+            in {"n/a", "none", "not applicable", "no change", "no rollback needed"}
+            or any(
+                old in normalized
+                for old in (
+                    "may interrupt active work",
+                    "stop if impact is unclear",
+                    "record current settings and approve a recovery procedure",
+                    "read-only inspection",
+                    "read-only check",
+                )
+            )
+        ):
+            raise ValueError(
+                "Step-specific recovery required; no old boilerplate; "
+                "observations must use kind=read"
+            )
+
+
+class ActivePlan(BaseModel):
+    """Execution queue can grow through validated insertions, with a turn cap."""
+
+    steps: list[PlanStep] = Field(min_length=1, max_length=40)
+
+
+class ResolutionPlan(ActivePlan):
+    """Grounded, bounded instructions for human execution."""
+
+    steps: list[PlanStep] = Field(min_length=5, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_steps(self) -> "ResolutionPlan":
+        if [s.n for s in self.steps] != list(range(1, len(self.steps) + 1)):
+            raise ValueError("Plan step numbers must be consecutive")
+        for step in self.steps:
+            validate_specific_recovery(step)
+        return self
+
+
+class StepReply(BaseModel):
+    status: Literal["done", "skipped", "failed"]
+    output: str = ""
+    confirmed: bool = False
+
+
+class Interpretation(BaseModel):
+    decision: Literal["next", "insert_steps", "retriage", "escalate", "resolved"]
+    reason: str
+    steps: list[PlanStep] = Field(default_factory=list, max_length=5)
+
+
+class IncidentRecord(BaseModel):
+    symptoms: str
+    signatures: list[str]
+    root_causes: list[RootCauseID]
+    steps_worked: list[dict[str, str]]
+    platform: str
+    category: Category
+    version: str | None
+    os: str | None
+    environment: str
+    components: list[str]
+
+
+class IncidentState(TriageState, total=False):
+    plan: ActivePlan
+    step_index: int
+    reply: StepReply
+    history: list[dict[str, Any]]
+    decision: Interpretation
+    retriage_rounds: int
+    outcome: str
+    incident_record: IncidentRecord
+    saved_path: str
+    vendor_case: str
+    planner_turns: int

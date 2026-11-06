@@ -22,6 +22,10 @@ class Settings(BaseSettings):
         env_file=REPO_ROOT / ".env", env_file_encoding="utf-8", extra="ignore"
     )
 
+    fast_timeout_seconds: float = Field(default=60, ge=1, le=600)
+    strong_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    alt_timeout_seconds: float = Field(default=180, ge=1, le=600)
+    max_output_tokens: int = Field(default=16384, ge=1024, le=65536)
     fast_provider: Provider = "nebius"
     strong_provider: Provider = "nebius"
     alt_provider: Provider = "anthropic"
@@ -55,6 +59,10 @@ class Settings(BaseSettings):
     langsmith_project: str = "flowmedic-dev"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
     agent_version: str = "0.1.0"
+    sqlite_busy_timeout_ms: int = Field(default=30000, ge=1000, le=60000)
+    default_environment: str = "sample-prod"
+    runs_dir: Path = REPO_ROOT / "runs"
+    knowledge_dir: Path = REPO_ROOT / "knowledge"
     log_roots: list[Path] = Field(default_factory=list)
     max_llm_calls: int = Field(default=25, ge=0, le=25)
     log_transport: Literal["stdio", "inprocess"] = "stdio"

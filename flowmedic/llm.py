@@ -27,8 +27,9 @@ def get_llm(role: ModelRole) -> BaseChatModel:
             api_key=key,
             model_name=model,
             temperature=0,
-            timeout=60,
+            timeout=getattr(settings, f"{role}_timeout_seconds"),
             max_retries=2,
+            max_tokens=settings.max_output_tokens,
             metadata=metadata,
         )
     if provider == "nebius" and not settings.nebius_base_url.strip():
@@ -40,8 +41,9 @@ def get_llm(role: ModelRole) -> BaseChatModel:
         model=model,
         base_url=settings.nebius_base_url if provider == "nebius" else None,
         temperature=0,
-        timeout=60,
+        timeout=getattr(settings, f"{role}_timeout_seconds"),
         max_retries=2,
+        max_tokens=settings.max_output_tokens,
         metadata=metadata,
     )
 

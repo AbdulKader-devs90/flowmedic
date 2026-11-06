@@ -19,3 +19,5 @@ doc_sources:
   trusted:
   - docs.oracle.com
   fallback: open web
+
+default_environment: sample-prod

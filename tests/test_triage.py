@@ -81,7 +81,8 @@ class FakeModels:
 
 
 @pytest.fixture
-def model_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+def model_settings(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("RUNS_DIR", str(tmp_path / "runs"))
     monkeypatch.setenv("NEBIUS_MODEL", "fake-fast")
     monkeypatch.setenv("ANTHROPIC_MODEL", "fake-strong")
     monkeypatch.setenv("LOG_TRANSPORT", "inprocess")
@@ -175,7 +176,7 @@ def test_time_window_original_refs_and_private_key(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "case_id,missing,kind",
     [
-        ("SC-001", True, "context"),
+        ("SC-001", True, "log_access"),
         ("SC-002", False, "log_access"),
     ],
 )
@@ -189,8 +190,6 @@ def test_clarification_interrupts(
     )
     question = result["__interrupt__"][0].value
     assert question["kind"] == kind
-    if missing:
-        assert question["slots"] == ["version"]
     assert len(fake.messages) == 1  # No model or log read while interrupted.
     assert not result.get("evidence")
 
@@ -253,13 +252,15 @@ def test_context_two_round_bound(model_settings: None) -> None:
 
     async def invoke() -> Any:
         result = await graph.ainvoke(initial_state("SC-001"), config)
+        assert result["__interrupt__"][0].value["kind"] == "log_access"
+        result = await graph.ainvoke(Command(resume={"approved": True}), config)
         for _ in range(2):
             assert result["__interrupt__"][0].value["kind"] == "context"
             result = await graph.ainvoke(Command(resume={"skip": True}), config)
         return result
 
     result = asyncio.run(invoke())
-    assert result["__interrupt__"][0].value["kind"] == "log_access"
+    assert not result.get("__interrupt__")
     # The node records the remaining gap when it leaves the second round.
     assert result["clarification_rounds"] == 2
 
@@ -535,3 +536,108 @@ def test_mutation_cannot_be_mislabeled_read() -> None:
                 "command_or_action": "Set JVM debug logging to DEBUG",
             }
         )
+
+
+def test_step4_graph_order_and_steps_scope(model_settings: None) -> None:
+    graph = build_graph(nodes=nodes_for(FakeModels()))
+    edges = {(edge.source, edge.target) for edge in graph.get_graph().edges}
+    assert ("request_log_access", "evidence") in edges
+    assert ("evidence", "clarify") in edges
+    result = asyncio.run(run("SC-001", {}, True, graph=graph))
+    assert len(result.first_steps) <= 6
+    assert result.first_steps[0].source_ref == "INC-003"
+    assert {s.source_ref for s in result.first_steps} <= {"INC-003", "RB-02", "RB-04"}
+    assert len({s.command_or_action.casefold() for s in result.first_steps}) == len(
+        result.first_steps
+    )
+    assert result.affected_component == "is-cluster"
+    assert result.related_components == [
+        "tsa",
+        "um",
+        "is-db",
+        "backends",
+        "api-gw",
+        "digital-gw",
+    ]
+
+
+def test_component_inferred_before_clarification(model_settings: None) -> None:
+    class MissingComponent(FakeModels):
+        def with_structured_output(self, schema: Any) -> Any:
+            if schema is TriageContext:
+                return Mock(
+                    invoke=lambda *a, **kw: TriageContext(
+                        platform="webmethods", version="10.15", os="linux"
+                    )
+                )
+            return super().with_structured_output(schema)
+
+    graph = build_graph(nodes=nodes_for(MissingComponent()))
+    config = {"configurable": {"thread_id": "infer-component"}}
+
+    async def exercise() -> Any:
+        first = await graph.ainvoke(initial_state("SC-001"), config)
+        assert first["__interrupt__"][0].value["kind"] == "log_access"
+        return await graph.ainvoke(Command(resume={"approved": True}), config)
+
+    result = asyncio.run(exercise())
+    assert not result.get("__interrupt__")
+    assert result["context"].component == "integration_server"
+    assert not result.get("clarification_rounds")
+
+
+def test_affected_component_validation_repairs_once(model_settings: None) -> None:
+    class BadComponent(FakeModels):
+        def with_structured_output(self, schema: Any) -> Any:
+            if issubclass(schema, Classification):
+
+                def invoke(*args: Any, **kwargs: Any) -> Any:
+                    self.messages.append("bad-component")
+                    return {
+                        "category": "POOL",
+                        "severity": "P2",
+                        "confidence": 0.9,
+                        "affected_component": "invented",
+                    }
+
+                return Mock(invoke=invoke)
+            return super().with_structured_output(schema)
+
+    fake = BadComponent()
+    result = asyncio.run(
+        run("SC-001", {}, True, graph=build_graph(nodes=nodes_for(fake)))
+    )
+    assert fake.messages.count("bad-component") == 2
+    assert "failed validation twice" in result.notes
+
+
+def test_best_unverified_incident_does_not_borrow_another_fix(
+    model_settings: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from flowmedic.knowledge.loaders import load_documents
+
+    docs = load_documents()
+    selected = next(d for d in docs if d.doc_id == "INC-003")
+    other = next(d for d in docs if d.doc_id == "INC-004")
+    monkeypatch.setattr(
+        "flowmedic.agents.triage.nodes.load_documents",
+        lambda: [selected.model_copy(update={"verified": False}), other],
+    )
+    match = KBMatch(
+        doc_id="INC-003",
+        doc_type="incident",
+        title="Pool",
+        score=0.95,
+        vector_score=0.95,
+    )
+    alternate = match.model_copy(update={"doc_id": "INC-004", "score": 0.8})
+    nodes = TriageNodes(vendor=lambda *a, **kw: VendorFindings())
+    s = initial_state("SC-001")
+    s.update(
+        context=TriageContext(platform="webmethods"),
+        route="known_fix",
+        matches=[alternate, match],
+    )
+    output = asyncio.run(nodes.resolve(s, {}))
+    assert not output["first_steps"]
+    assert output["route"] == "similar"

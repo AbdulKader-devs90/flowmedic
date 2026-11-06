@@ -106,7 +106,7 @@ def case_trace(config: RunnableConfig) -> Iterator[None]:
     with (
         tracing_context(enabled=True),
         trace(
-            name="triage",
+            name=config.get("run_name", "triage"),
             run_type="chain",
             inputs={"case_id": config.get("metadata", {}).get("case_id")},
             metadata=config.get("metadata", {}),

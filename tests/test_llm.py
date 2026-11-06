@@ -8,7 +8,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableWithFallbacks
 from langchain_openai import ChatOpenAI
 
-from flowmedic.config import ConfigurationError, ModelRole
+from flowmedic.config import ConfigurationError, ModelRole, get_settings
 from flowmedic.llm import get_llm, get_llm_with_fallback
 from flowmedic.smoke import main, smoke_call
 from flowmedic.tracing import run_config
@@ -56,9 +56,13 @@ def test_model_selection(
     if role == "fast":
         assert str(model.openai_api_base) == "https://nebius.example.invalid/v1"
     if isinstance(model, ChatAnthropic):
-        assert model.default_request_timeout == 60
+        assert model.default_request_timeout == getattr(
+            get_settings(), f"{role}_timeout_seconds"
+        )
     else:
-        assert model.request_timeout == 60
+        assert model.request_timeout == getattr(
+            get_settings(), f"{role}_timeout_seconds"
+        )
 
 
 def test_missing_key_error_on_model_use() -> None:

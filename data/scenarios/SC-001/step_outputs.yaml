@@ -1,5 +1,5 @@
 # Engineer simulator: what the engineer would paste back for each plan step.
-# The first entry whose keywords all appear in the step text (case-insensitive) is used.
+# Choose the unused all-keyword match with most keywords; file order breaks ties.
 # Synthetic and anonymized.
 steps:
   - match: ["pool"]

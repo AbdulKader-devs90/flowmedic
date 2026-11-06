@@ -1,6 +1,6 @@
 # FlowMedic
 
-**Diagnose the break. Guide the fix.** FlowMedic is a read-only, two-agent triage assistant for integration-platform incidents, starting with webMethods and a light Kong profile. The Triage Agent will classify incidents and find solved cases, runbooks or vendor documentation; the Planner Agent will guide the engineer through the fix. The engineer runs every command. Steps 1–3 provide configuration, knowledge retrieval, safe log access, vendor research, and a checkpointed Triage Agent CLI. The Planner Agent and UI are future steps.
+**Diagnose the break. Guide the fix.** FlowMedic is a read-only, two-agent triage assistant for integration-platform incidents, starting with webMethods and a light Kong profile. The Triage Agent classifies incidents and finds solved cases, runbooks or vendor documentation; the Planner Agent guides the engineer through the fix. The engineer runs every command. Steps 1–4 provide triage, topology-aware planning, an engineer step loop, persistent checkpoints, environment memory and approved incident saves. The UI is next.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. Run commands from the repository root; uv selects Python 3.11.
 
@@ -46,7 +46,7 @@ Live tests call a real API and may incur charges; they are excluded by default. 
 Two-laptop rule: **pull before work, commit and push after**. On each laptop, run `git pull` before making changes and `git add`, `git commit`, and `git push` after finishing. Keep provider keys in each laptop's local `.env`.
 
 Step 2 adds validated knowledge/scenario loaders, state models, topology checks,
-secret masking, diagnostic parsers, and hybrid retrieval. Step 3 adds graph execution and triage; the Planner and UI remain future steps.
+secret masking, diagnostic parsers, and hybrid retrieval. Steps 3–4 add triage and planner graphs; the UI is next.
 Seed content is read without modification.
 
 Configure `VECTOR_BACKEND=pinecone` and `PINECONE_API_KEY` in `.env` to use the
@@ -111,14 +111,15 @@ uv run python -m flowmedic.agents.triage.run SC-007 --answer version=10.15 --ans
 uv run python -m flowmedic.agents.triage.run SC-009 --approve-logs
 ```
 
-The graph extracts context with the fast model, pauses for missing profile slots
-(up to two rounds), and requests a specific log folder and time window before
-reading. A null window means the whole supplied export. `--approve-logs` approves
+The graph extracts context with the fast model, requests log access, reads approved
+evidence, then asks for profile slots still missing after signature inference and
+environment memory (up to two rounds). A null window means the whole supplied export. `--approve-logs` approves
 that displayed export. In a terminal, enter `y` to approve; without a terminal,
 unspecified answers are skipped and log access is denied unless the flag is set.
 The final text and `runs/<case_id>.json` include evidence references, source labels,
 risks/rollback, diagnostic gaps, and quarantined flags. `runs/` is ignored by Git.
-Scenario expected labels are never used by triage. SC-007's report omits the
+Only the scenario expected.json `environment` field supplies engineer-selected UI
+context; expected categories, causes and routes are never passed into triage. SC-007's report omits the
 platform; supply `--answer platform=webmethods --answer component=integration_server`
 as well when those facts are known, or answer the interactive questions.
 
@@ -146,8 +147,7 @@ risk and rollback; the engineer executes every step.
 
 `MAX_LLM_CALLS=25` caps model calls including structured-output repairs and vendor
 research. Tool failures retry once and reduce confidence through recorded gaps.
-Graph state uses `InMemorySaver`: interrupts resume within the same CLI process;
-state does not survive restarting the process. LangSmith receives one case trace
+The triage-only CLI uses `InMemorySaver`; the full incident CLI below uses SQLite. LangSmith receives one case trace
 with graph/resume, node, model, and tool children when tracing is configured.
 
 ```sh
@@ -160,3 +160,59 @@ uv run pytest -m live tests/test_triage.py
 Offline coverage includes the actual graph and a local MCP stdio round trip, with
 fake structured LLMs, retrieval and Tavily. The live triage test calls real models,
 retrieval and potentially vendor search; it is deselected by default.
+
+
+Step 4 runs the full incident workflow:
+
+```sh
+uv sync
+uv run python -m flowmedic.run SC-001 --auto --answer version=10.15
+uv run python -m flowmedic.run SC-008 --auto
+uv run python -m flowmedic.run KONG-SC-01 --auto
+# Interactive engineer answers, log approval and step confirmation:
+uv run python -m flowmedic.run SC-001 --environment sample-prod
+```
+
+`--answer k=v` is repeatable. `--auto` approves the scenario log export and uses
+its scripted engineer responses, including confirmation of changes. The simulator
+selects the unused entry with the most keywords when every keyword matches
+case-insensitively, breaks ties in file order, and consumes each entry once per
+incident (including re-triage). It falls back to the fixture default. Run demos
+sequentially against the shared SQLite file. Neither mode
+executes plan commands. Saves are rejected by default in automatic demos;
+`--approve-save` explicitly approves writing the displayed incident record into
+`knowledge/incidents/` and indexing that single document. Interactive mode asks
+for save approval. Existing seed documents are never overwritten. Failed indexing
+leaves the approved Markdown in place with a recorded gap for explicit reindexing.
+
+Each step shows its topology component, provenance, expected output and decision
+rule. Interactive output accepts multiple lines; finish the paste with a single
+`.` on its own line. Change/destructive steps require specific risk/rollback and engineer
+confirmation. Output is masked and parsed before structured interpretation. New
+root-cause evidence hands back to triage, at most twice; exhausted plans, budgets
+or iteration limits escalate with a vendor support draft. Incident records use
+literal masked engineer observations (bounded excerpts), so summarization cannot
+invent command execution. A successful diagnostic alone does not establish a fix.
+
+The initial plan has 5–10 steps. Validated insertions can extend the execution
+queue to 40 entries; the loop stops after 30 observations or `MAX_LLM_CALLS`.
+`MAX_OUTPUT_TOKENS=16384` includes both reasoning and the structured answer.
+`FAST_TIMEOUT_SECONDS=60`, `STRONG_TIMEOUT_SECONDS=180` and
+`ALT_TIMEOUT_SECONDS=180` allow longer structured plans to finish.
+The parent emits custom `{node, summary}` progress events for the future UI.
+One LangSmith `incident` root spans triage, planning, pauses and re-triage.
+
+Full transcripts/state are saved to `runs/<case_id>-full.json`. SQLite checkpoints
+are in `runs/checkpoints.sqlite`, with a unique `<case_id>-<UTC timestamp>` thread.
+The graph API can resume that thread with `Command(resume=...)` after reconstructing
+the graph and saver; the CLI starts a new incident each invocation. Environment
+memory uses LangGraph `SqliteStore` in `runs/environments.sqlite` when available,
+with `runs/environments.json` as a fallback, keyed by environment,
+containing engineer-provided platform/version/OS and approved log roots. It does
+not authorize subsequent log access. Explicit environment selection takes
+precedence over the last confirmed environment for the platform; defaults are `DEFAULT_ENVIRONMENT=sample-prod`, or the Kong profile's
+`kong-sample`. An unknown environment records a missing-topology gap.
+
+`RUNS_DIR` and `KNOWLEDGE_DIR` may be configured to other in-repository folders.
+Unit tests use fake models and temporary knowledge directories; real full-graph
+coverage is opt-in with `uv run pytest -m live tests/test_planner.py`.

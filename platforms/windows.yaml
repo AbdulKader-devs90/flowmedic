@@ -12,3 +12,5 @@ read_only_checks:
 doc_sources:
   trusted: []
   fallback: open web
+
+default_environment: sample-prod

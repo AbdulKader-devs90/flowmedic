@@ -1,0 +1,416 @@
+Step 4 — latest completed command outputs.
+Demo runs were executed sequentially. Repository paths are normalized to <repo>.
+The additional SC-001 verification regression run was stopped at the user request; its partial output is excluded.
+
+$ uv run ruff check .
+All checks passed!
+
+Exit code: 0
+
+$ uv run pytest
+============================= test session starts ==============================
+platform darwin -- Python 3.11.18, pytest-9.2.0, pluggy-1.7.0
+rootdir: <repo>
+configfile: pyproject.toml
+testpaths: tests
+plugins: langsmith-0.14.17, anyio-4.16.0
+collected 121 items / 4 deselected / 117 selected
+
+tests/test_config.py .............                                       [ 11%]
+tests/test_knowledge.py .........................                        [ 32%]
+tests/test_llm.py ........................                               [ 52%]
+tests/test_planner.py ........................                           [ 73%]
+tests/test_triage.py ...............................                     [100%]
+
+====================== 117 passed, 4 deselected in 4.25s =======================
+
+Exit code: 0
+
+$ uv run python -m flowmedic.run SC-001 --auto --answer version=10.15
+Category: POOL | Severity: P1
+Route: known_fix | Confidence: 98%
+Root causes:
+  jdbc_pool_exhausted (95%) evidence: server.log:2, server.log:3, server.log:4
+Top KB match: INC-003 — JDBC adapter pool exhausted by slow backend queries (1.000)
+Related components: tsa, um, is-db, backends, api-gw, digital-gw
+Suggested first steps (engineer executes):
+  1. [read] [verified: INC-003] Check pool usage against max size in the Admin UI; take a thread dump and count threads in getConnection.
+  2. [read] [verified: INC-003] Ask the DBA for long-running sessions from the IS host and their SQL.
+  3. [change] [verified: INC-003] DBA ends the runaway session only if the owning service is gone; otherwise cancel the service thread in IS.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  4. [change] [verified: INC-003] Disable and enable the adapter connection to reset the pool; raise max size only after checking DB session limits.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  5. [read] [verified: RB-02] Is the database up and reachable from the IS host?
+  6. [read] [verified: RB-02] Did the DB user's password change, or is the account locked?
+Step 1 [read] is-cluster [verified: INC-003]: Check pool usage against max size in the Admin UI for the is-cluster JDBC adapter.
+Expected: Pool usage is at or near max with 0 available connections, matching 'threshold exceeded, 0 available'. | Decision rule: If 0 available or at max, go to step 2; if available connections remain, re-triage.
+Engineer output: Admin UI > Adapters > JDBC Adapter > Connections > OrdersApi.connections:OrdersDB_Pool
+Min 0 | Max 15 | In use 15 | Available 0 | Block timeout 10000 ms | Waiting requests 37
+Decision: next — Pool usage is at max with 0 available connections, matching the expected output for step 1; proceed to step 2 to inspect thread dumps for blocked threads in getConnection.
+Step 2 [read] is-cluster [verified: INC-003]: Take a thread dump on is-node-a and is-node-b and count is-cluster threads blocked in getConnection.
+Expected: Thread dump shows multiple is-cluster threads blocked in getConnection waiting for a pooled connection. | Decision rule: If multiple threads are blocked in getConnection, go to step 3; if not, re-triage.
+Engineer output: is-node-a thread dump 10:44 (402 threads)
+  37  HTTP Handler  at com.wm.adapter.wmjdbc.connection.JDBCConnectionPool.getConnection
+  15  HTTP Handler  at oracle.jdbc.driver.T4CPreparedStatement.executeForRows (OrdersApi.db:insertOrder)
+ 350  other
+Decision: next — Thread dump shows 37 is-cluster threads blocked in getConnection, matching expected output for step 2; proceed to step 3 to inspect long-running is-db sessions.
+Step 3 [read] is-db [verified: INC-003]: Ask the DBA for long-running and blocking is-db sessions from the is-cluster host and their SQL; record the SID and SQL.
+Expected: DBA reports one or more long-running or blocking is-db sessions from is-cluster, with SQL matching slow backend queries; SID and SQL are recorded. | Decision rule: If a long-running or blocking session is identified, go to step 4; if none, go to step 5.
+Re-triage 1
+Category: DB | Severity: P1
+Route: known_fix | Confidence: 98%
+Root causes:
+  db_blocking_lock (95%) evidence: step-3:2, step-3:3
+  jdbc_pool_exhausted (95%) evidence: server.log:2, server.log:3, server.log:4, server.log:5, server.log:6
+Top KB match: INC-003 — JDBC adapter pool exhausted by slow backend queries (1.000)
+Related components: tsa, um, is-db, backends, api-gw, digital-gw
+Suggested first steps (engineer executes):
+  1. [read] [verified: INC-003] Check pool usage against max size in the Admin UI; take a thread dump and count threads in getConnection.
+  2. [read] [verified: INC-003] Ask the DBA for long-running sessions from the IS host and their SQL.
+  3. [change] [verified: INC-003] DBA ends the runaway session only if the owning service is gone; otherwise cancel the service thread in IS.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  4. [change] [verified: INC-003] Disable and enable the adapter connection to reset the pool; raise max size only after checking DB session limits.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  5. [read] [verified: RB-02] Is the database up and reachable from the IS host?
+  6. [read] [verified: RB-02] Did the DB user's password change, or is the account locked?
+Engineer output: DBA: sessions from machine is-node-a, program "JDBC Thin Client", user ORDERS_SVC
+  SID 1412  status ACTIVE  elapsed 00:07:41  sql: SELECT ... FROM ORDER_REPORT_V ... (ad-hoc report)
+  14 other sessions ACTIVE, all waiting on SID 1412 (enq: TX - row lock contention)
+Decision: retriage — Blocking lock evidence introduces db_blocking_lock.
+Step 1 [read] is-cluster [verified: RB-02]: Confirm is-db is up and reachable from is-node-a, and check api-gw/digital-gw health for a 5xx surge before recovery.
+Expected: is-db accepts connections from is-node-a; api-gw and digital-gw show no 5xx surge. | Decision rule: If is-db is unreachable or callers are failing, re-triage; if healthy, go to step 2.
+Engineer output: Not applicable in this environment.
+Decision: next — Blocking lock evidence from DBA report confirms root cause; proceed to step 2 to cancel the blocking DB session and its owning service thread if active.
+Step 2 [change] is-db [verified: INC-003]: Cancel is-db session SID 1412 (user ORDERS_SVC, program 'JDBC Thin Client', from is-node-a) running the ad-hoc ORDER_REPORT_V SELECT, owned by the is-cluster ad-hoc report request/thread on is-node-a; if the owning is-cluster report thread is still active, cancel that service thread in IS instead of killing the DB session.
+Expected: SID 1412 is no longer ACTIVE; the 14 sessions waiting on enq: TX - row lock contention proceed; no new blocker appears. | Decision rule: If SID 1412 is gone and waiters clear, go to step 3; if the owning is-cluster thread is still active, stop and cancel that service thread first; if a new blocker appears, re-triage.
+Risk: Cancelling SID 1412 rolls back the ad-hoc ORDER_REPORT_V report query and loses its progress; the 14 waiting sessions will proceed, but if the owning is-cluster report thread is still active, that thread will error and may retry, re-blocking.
+Rollback: Cannot un-cancel; the ad-hoc report must be resubmitted; if the owning is-cluster thread is still active, stop and cancel that service thread in IS instead; record SID 1412 and SQL before action.
+Engineer output: The report job owner confirmed it was a manual ad-hoc run. DBA killed SID 1412 at 10:49.
+Decision: next — DBA confirmed SID 1412 was killed at 10:49; proceed to step 3 to verify blocking sessions and waiters are cleared in is-db.
+Step 3 [read] is-db [verified: INC-003]: Query is-db for blocking sessions and waiters from is-node-a; confirm SID 1412 is gone and no sessions remain waiting on enq: TX - row lock contention.
+Expected: SID 1412 is gone; no sessions waiting on enq: TX - row lock contention; no new blocker. | Decision rule: If blocking is cleared, go to step 4; if SID 1412 persists or a new blocker appears, re-triage.
+Engineer output: Not applicable in this environment.
+Decision: next — DBA confirmed SID 1412 was killed at 10:49; proceed to step 3 to verify blocking sessions and waiters are cleared in is-db.
+Step 4 [read] is-cluster [verified: INC-003]: Check OrdersApi.connections:OrdersDB_Pool in the Admin UI for in-use, available, and waiting requests after the blocking session clears.
+Expected: In use drops below max 15; Available is greater than 0; Waiting requests drop from 37 toward 0. | Decision rule: If pool recovers, go to step 6; if still 0 available or waiting requests remain high, go to step 5.
+Engineer output: Not applicable in this environment.
+Decision: next — Blocking lock evidence from DBA report confirms root cause; proceed to step 3 to verify blocking sessions and waiters are cleared in is-db.
+Step 5 [change] is-cluster [verified: INC-003]: Disable and enable the OrdersApi JDBC adapter connection to reset the pool; raise max size only after checking DB session limits.
+Expected: Pool resets; Available is greater than 0; waiting requests drain. | Decision rule: If pool recovers, go to step 6; if not, re-triage.
+Risk: Disabling the adapter connection interrupts in-flight OrdersApi requests and drops pooled connections; if DB session limits are near capacity, re-enabling may immediately exhaust the pool again.
+Rollback: Re-enable the adapter connection; if it fails, restore the previous max size and re-triage; do not raise max size until DB session limits are checked.
+Engineer output: Connection disabled and enabled at 10:51. Pool now: In use 3 | Available 12 | Waiting 0.
+Decision: resolved — Pool reset successfully with available connections restored and no remaining waiting requests; service health confirmed via recovery evidence in the Admin UI and absence of error signatures in logs.
+Outcome: resolved
+{
+  "symptoms": "The Orders API is returning HTTP 500 to all callers since about 10:40. server.log shows the JDBC adapter pool has 0 connections available. Platform is webMethods Integration Server on Linux, production cluster.\nSession outcome: resolved",
+  "signatures": [
+    "ART.118.5036",
+    "threshold exceeded, 0 available",
+    "ART.118.5053",
+    "ART.117.4012"
+  ],
+  "root_causes": [
+    "db_blocking_lock",
+    "jdbc_pool_exhausted"
+  ],
+  "steps_worked": [
+    {
+      "action": "Check pool usage against max size in the Admin UI for the is-cluster JDBC adapter.",
+      "kind": "read",
+      "output": "Admin UI > Adapters > JDBC Adapter > Connections > OrdersApi.connections:OrdersDB_Pool\nMin 0 | Max 15 | In use 15 | Available 0 | Block timeout 10000 ms | Waiting requests 37",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Take a thread dump on is-node-a and is-node-b and count is-cluster threads blocked in getConnection.",
+      "kind": "read",
+      "output": "is-node-a thread dump 10:44 (402 threads)\n  37  HTTP Handler  at com.wm.adapter.wmjdbc.connection.JDBCConnectionPool.getConnection\n  15  HTTP Handler  at oracle.jdbc.driver.T4CPreparedStatement.executeForRows (OrdersApi.db:insertOrder)\n 350  other",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Ask the DBA for long-running and blocking is-db sessions from the is-cluster host and their SQL; record the SID and SQL.",
+      "kind": "read",
+      "output": "DBA: sessions from machine is-node-a, program \"JDBC Thin Client\", user ORDERS_SVC\n  SID 1412  status ACTIVE  elapsed 00:07:41  sql: SELECT ... FROM ORDER_REPORT_V ... (ad-hoc report)\n  14 other sessions ACTIVE, all waiting on SID 1412 (enq: TX - row lock contention)",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Cancel is-db session SID 1412 (user ORDERS_SVC, program 'JDBC Thin Client', from is-node-a) running the ad-hoc ORDER_REPORT_V SELECT, owned by the is-cluster ad-hoc report request/thread on is-node-a; if the owning is-cluster report thread is still active, cancel that service thread in IS instead of killing the DB session.",
+      "kind": "change",
+      "output": "The report job owner confirmed it was a manual ad-hoc run. DBA killed SID 1412 at 10:49.",
+      "risk": "Cancelling SID 1412 rolls back the ad-hoc ORDER_REPORT_V report query and loses its progress; the 14 waiting sessions will proceed, but if the owning is-cluster report thread is still active, that thread will error and may retry, re-blocking.",
+      "rollback": "Cannot un-cancel; the ad-hoc report must be resubmitted; if the owning is-cluster thread is still active, stop and cancel that service thread in IS instead; record SID 1412 and SQL before action."
+    },
+    {
+      "action": "Disable and enable the OrdersApi JDBC adapter connection to reset the pool; raise max size only after checking DB session limits.",
+      "kind": "change",
+      "output": "Connection disabled and enabled at 10:51. Pool now: In use 3 | Available 12 | Waiting 0.",
+      "risk": "Disabling the adapter connection interrupts in-flight OrdersApi requests and drops pooled connections; if DB session limits are near capacity, re-enabling may immediately exhaust the pool again.",
+      "rollback": "Re-enable the adapter connection; if it fails, restore the previous max size and re-triage; do not raise max size until DB session limits are checked."
+    }
+  ],
+  "platform": "webmethods",
+  "category": "DB",
+  "version": "10.15",
+  "os": "linux",
+  "environment": "sample-prod",
+  "components": [
+    "is-cluster",
+    "is-db"
+  ]
+}
+Saved runs/SC-001-full.json
+
+Exit code: 0
+
+$ uv run python -m flowmedic.run SC-008 --auto
+Category: OUTAGE | Severity: P1
+Route: known_fix | Confidence: 95%
+Root causes:
+  auth_hashing_thread_pileup (90%) evidence: threaddump-summary.txt:2, server.log:1
+  db_login_timeout (85%) evidence: server.log:2, server.log:5, server.log:4
+  host_swap_pressure (90%) evidence: host.txt:1, host.txt:2, host.txt:3
+Top KB match: INC-001 — Node not responding: auth hashing thread pile-up with DB login timeouts (1.000)
+Related components: tsa, um, is-db, backends, api-gw, digital-gw
+Suggested first steps (engineer executes):
+  1. [read] [verified: INC-001] Take 2-3 thread dumps; count threads in PBKDF2KeyImpl.deriveKey and in getConnection.
+  2. [read] [verified: INC-001] grep server.log for 'Login has timed out' and 'fail-fast'; ask the DBA for IS schema sessions by machine and blockers.
+  3. [change] [verified: INC-001] Block or throttle gateway traffic to the node (firewall or gateway throttle).
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  4. [change] [verified: INC-001] Follow RB-14: stop IS, DBA clears leftover sessions, start nodes one at a time.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  5. [change] [verified: INC-001] Cap the server thread pool and add per-API throttling; plan mTLS between gateway and IS.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  6. [read] [verified: RB-01] Host: `uptime`, `free -m`, `vmstat 5 5` (si/so for swap, r for run queue), thread count and memory of the IS process.
+Step 1 [read] is-db [verified: INC-001]: Ask the DBA to query is-db for ISInternal sessions by machine and blocking sessions; record any blocking SID/serial# observed.
+Expected: DBA returns ISInternal sessions and any blocking session SID/serial#; a blocker or long-running IS session is identified. | Decision rule: If a blocking ISInternal session is identified, go to step 5; if no blocker is found but login timeouts persist, go to step 6.
+Re-triage 1
+Category: OUTAGE | Severity: P1
+Route: known_fix | Confidence: 98%
+Root causes:
+  db_blocking_lock (95%) evidence: step-1:1, step-1:2, step-1:3, step-1:4
+  auth_hashing_thread_pileup (90%) evidence: threaddump-summary.txt:2, server.log:1
+  host_swap_pressure (90%) evidence: host.txt:1, host.txt:2, host.txt:3
+Top KB match: INC-001 — Node not responding: auth hashing thread pile-up with DB login timeouts (1.000)
+Related components: tsa, um, is-db, backends, api-gw, digital-gw
+Suggested first steps (engineer executes):
+  1. [read] [verified: INC-001] Take 2-3 thread dumps; count threads in PBKDF2KeyImpl.deriveKey and in getConnection.
+  2. [read] [verified: INC-001] grep server.log for 'Login has timed out' and 'fail-fast'; ask the DBA for IS schema sessions by machine and blockers.
+  3. [change] [verified: INC-001] Block or throttle gateway traffic to the node (firewall or gateway throttle).
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  4. [change] [verified: INC-001] Follow RB-14: stop IS, DBA clears leftover sessions, start nodes one at a time.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  5. [change] [verified: INC-001] Cap the server thread pool and add per-API throttling; plan mTLS between gateway and IS.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+  6. [read] [verified: RB-01] Host: `uptime`, `free -m`, `vmstat 5 5` (si/so for swap, r for run queue), thread count and memory of the IS process.
+Notes: Structured repair for GroundedInterpretation: ValidationError.
+Engineer output: DBA: blocking sessions
+  SID 877  machine is-node-b  program wrapper-java  status INACTIVE  holds TX lock on WMSERVICE
+  blocked: 214 sessions  wait: enq: TX - row lock contention  blocked for 127 minutes
+  SID 877 belongs to the IS process that was force-killed at 08:35 (two restarts ago)
+Decision: retriage — Blocking lock evidence introduces db_blocking_lock.
+Step 1 [read] is-db [verified: INC-001]: Ask the DBA to re-check is-db for SID 877: status, machine, program, blocking count, and whether it still holds the TX lock on WMSERVICE. Confirm it is the orphaned ISInternal session from the force-killed IS process on is-node-b (wrapper-java).
+Expected: SID 877 is still INACTIVE, machine is-node-b, program wrapper-java, holds TX lock on WMSERVICE, and blocks ~214 sessions; no active IS process owns it. | Decision rule: If SID 877 is still the orphaned blocker, go to step 6; if it is no longer blocking, go to step 3; if a different blocker is present, re-triage.
+Engineer output: DBA: sessions of the IS schema by machine: is-node-a 38, is-node-b 251 (pool max 100). Listener log clean.
+Decision: next — Blocking lock evidence from SID 877 is confirmed and consistent with triage; proceed to step 6 to cancel the orphaned session.
+Step 2 [read] api-gw [verified: INC-001]: Check api-gw and digital-gw health and error rates for 5xx/timeouts to is-cluster; record affected caller paths.
+Expected: Caller error rates and timeout counts show the impact on api-gw and digital-gw. | Decision rule: If callers show elevated 5xx/timeouts to is-cluster, go to step 7; if not, go to step 8.
+Engineer output: Not applicable in this environment.
+Decision: next — Blocking lock from SID 877 is confirmed and consistent with triage; proceed to step 6 to cancel the orphaned session.
+Step 3 [read] is-cluster [verified: INC-001]: Take 2-3 thread dumps on is-cluster nodes (is-node-a, is-node-b); count threads in PBKDF2KeyImpl.deriveKey and in getConnection.
+Expected: Thread counts show whether PBKDF2KeyImpl.deriveKey threads and getConnection waiters are elevated. | Decision rule: If PBKDF2KeyImpl.deriveKey threads are high and getConnection waiters are present, go to step 4; if not, go to step 5.
+Engineer output: is-node-b thread dump 10:41 (1,207 threads)
+  790  HTTP Handler at com.sun.crypto.provider.PBKDF2KeyImpl.deriveKey (client 10.0.0.68)
+  322  HTTP Handler at com.wm.app.b2b.server.jdbc.WmConnectionPool.getConnection
+   95  other
+Decision: next — Blocking lock from SID 877 is confirmed and consistent with triage; proceed to step 6 to cancel the orphaned session.
+Step 4 [read] is-cluster [verified: INC-001]: grep server.log on is-cluster for 'Login has timed out' and 'fail-fast'; record timestamps and node.
+Expected: Matches show whether login timeouts and fail-fast are still occurring after SID 877 cancellation. | Decision rule: If 'Login has timed out' or 'fail-fast' matches are present, go to step 5; if not, go to step 2.
+Engineer output: grep -c "Login has timed out" server.log  -> 41 (first 10:33:15, last 10:44:02)
+grep -c "fail-fast" server.log            -> 6
+Decision: next — Blocking lock from SID 877 is confirmed and consistent with triage; proceed to step 6 to cancel the orphaned session.
+Step 5 [read] is-cluster [verified: RB-01]: Host: `uptime`, `free -m`, `vmstat 5 5` (si/so for swap, r for run queue), thread count and memory of the IS process.
+Expected: Load average, swap in/out, run queue, and IS thread count/memory are recorded. | Decision rule: If si/so > 0 or run queue r is high, go to step 2; if not, go to step 2.
+Engineer output: free -m: Swap used 5980 of 8191 MB; vmstat si 512 so 470
+Decision: next — Blocking lock from SID 877 is confirmed and consistent with triage; proceed to step 6 to cancel the orphaned session.
+Step 6 [change] is-db [verified: INC-001]: DBA cancels DB session SID 877 on is-db. Observed: SID 877, machine is-node-b, program wrapper-java, status INACTIVE, holds TX lock on WMSERVICE, blocks 214 sessions for 127 minutes; belongs to the IS process force-killed at 08:35. Transaction loss: any uncommitted WMSERVICE transaction from SID 877 is rolled back. Owning job recovery: restart is-node-b per RB-14 and replay/reconcile the WMSERVICE transaction from ISCoreAudit/DocumentHistory.
+Expected: SID 877 is gone; blocked sessions drop from 214 to 0; no enq: TX - row lock contention on WMSERVICE. | Decision rule: If blocked sessions clear, go to step 3; if blocking persists or a new blocker appears, re-triage with the DBA.
+Risk: Cancellation rolls back SID 877's uncommitted WMSERVICE transaction and releases 214 blocked sessions; if SID 877 is not truly orphaned, active IS work is interrupted.
+Rollback: A cancelled session cannot be un-killed; if the transaction is needed, restore/reconcile from ISCoreAudit/DocumentHistory and rerun the owning job after is-node-b restart. DBA must confirm no active transaction before cancel.
+Engineer output: Followed RB-14: traffic blocked, IS stopped, DBA killed SID 877, IS started 11:06, ping 200, traffic reopened 11:12.
+Decision: resolved — DB session SID 877 canceled, blocked sessions cleared, IS restarted successfully, and service health recovered with no further login timeouts or blocking evidence.
+Outcome: resolved
+{
+  "symptoms": "is-node-b is not responding and load is very high. Users get timeouts on most APIs. IS 10.15, Linux, 2-node cluster with Terracotta. I can give you read access to the logs for 10:30 to 11:00.\nSession outcome: resolved",
+  "signatures": [
+    "ISS.14.23",
+    "ISS.128.1",
+    "Login has timed out",
+    "threshold exceeded, 0 available",
+    "ISS.95.20",
+    "fail-fast"
+  ],
+  "root_causes": [
+    "db_blocking_lock",
+    "auth_hashing_thread_pileup",
+    "host_swap_pressure"
+  ],
+  "steps_worked": [
+    {
+      "action": "Ask the DBA to query is-db for ISInternal sessions by machine and blocking sessions; record any blocking SID/serial# observed.",
+      "kind": "read",
+      "output": "DBA: blocking sessions\n  SID 877  machine is-node-b  program wrapper-java  status INACTIVE  holds TX lock on WMSERVICE\n  blocked: 214 sessions  wait: enq: TX - row lock contention  blocked for 127 minutes\n  SID 877 belongs to the IS process that was force-killed at 08:35 (two restarts ago)",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Ask the DBA to re-check is-db for SID 877: status, machine, program, blocking count, and whether it still holds the TX lock on WMSERVICE. Confirm it is the orphaned ISInternal session from the force-killed IS process on is-node-b (wrapper-java).",
+      "kind": "read",
+      "output": "DBA: sessions of the IS schema by machine: is-node-a 38, is-node-b 251 (pool max 100). Listener log clean.",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Take 2-3 thread dumps on is-cluster nodes (is-node-a, is-node-b); count threads in PBKDF2KeyImpl.deriveKey and in getConnection.",
+      "kind": "read",
+      "output": "is-node-b thread dump 10:41 (1,207 threads)\n  790  HTTP Handler at com.sun.crypto.provider.PBKDF2KeyImpl.deriveKey (client 10.0.0.68)\n  322  HTTP Handler at com.wm.app.b2b.server.jdbc.WmConnectionPool.getConnection\n   95  other",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "grep server.log on is-cluster for 'Login has timed out' and 'fail-fast'; record timestamps and node.",
+      "kind": "read",
+      "output": "grep -c \"Login has timed out\" server.log  -> 41 (first 10:33:15, last 10:44:02)\ngrep -c \"fail-fast\" server.log            -> 6",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Host: `uptime`, `free -m`, `vmstat 5 5` (si/so for swap, r for run queue), thread count and memory of the IS process.",
+      "kind": "read",
+      "output": "free -m: Swap used 5980 of 8191 MB; vmstat si 512 so 470",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "DBA cancels DB session SID 877 on is-db. Observed: SID 877, machine is-node-b, program wrapper-java, status INACTIVE, holds TX lock on WMSERVICE, blocks 214 sessions for 127 minutes; belongs to the IS process force-killed at 08:35. Transaction loss: any uncommitted WMSERVICE transaction from SID 877 is rolled back. Owning job recovery: restart is-node-b per RB-14 and replay/reconcile the WMSERVICE transaction from ISCoreAudit/DocumentHistory.",
+      "kind": "change",
+      "output": "Followed RB-14: traffic blocked, IS stopped, DBA killed SID 877, IS started 11:06, ping 200, traffic reopened 11:12.",
+      "risk": "Cancellation rolls back SID 877's uncommitted WMSERVICE transaction and releases 214 blocked sessions; if SID 877 is not truly orphaned, active IS work is interrupted.",
+      "rollback": "A cancelled session cannot be un-killed; if the transaction is needed, restore/reconcile from ISCoreAudit/DocumentHistory and rerun the owning job after is-node-b restart. DBA must confirm no active transaction before cancel."
+    }
+  ],
+  "platform": "webmethods",
+  "category": "OUTAGE",
+  "version": "10.15",
+  "os": "linux",
+  "environment": "sample-prod",
+  "components": [
+    "is-db",
+    "api-gw",
+    "is-cluster"
+  ]
+}
+Saved runs/SC-008-full.json
+
+Exit code: 0
+
+$ uv run python -m flowmedic.run KONG-SC-01 --auto
+Category: TIMEOUT | Severity: P2
+Route: known_fix | Confidence: 81%
+Root causes:
+  kong_upstream_timeout (80%) evidence: error.log:1, access.log:1
+Top KB match: KONG-INC-001 — Kong 504: upstream slower than the service read timeout (0.825)
+Related components: orders-svc, customers-svc, kong-cp, partners
+Suggested first steps (engineer executes):
+  1. [read] [verified: KONG-INC-001] Check upstream latency for the route in access.log.
+  2. [read] [verified: KONG-INC-001] Read the service timeouts with Admin API GET /services/{name}.
+  3. [read] [verified: KONG-INC-001] Check the orders service health and its own logs.
+  4. [change] [verified: KONG-INC-001] Fix the backend slowness; raise read_timeout only with the backend owner's approval.
+     Risk: May interrupt active work; the owner must assess impact before execution.
+     Rollback: Stop if impact is unclear; the owner must record current settings and approve a recovery procedure before execution.
+Step 1 [read] kong-dp [verified: KONG-INC-001]: Inspect upstream latency for the affected route in access.log.
+Expected: access.log shows upstream response times for the affected route and whether they exceed the service read timeout. | Decision rule: If upstream latency exceeds the service read timeout, go to step 2; if not, re-triage.
+Engineer output: access.log for POST /orders/v1/submit, last 15 min: upstream latency p50 48s, p95 61s; 504 count 212.
+Decision: next — Upstream latency (p50 48s, p95 61s) exceeds typical service read timeout, confirming the root cause aligns with the triage hypothesis.
+Step 2 [read] kong-dp [verified: KONG-INC-001]: Inspect the service timeouts with Admin API GET /services/{name}.
+Expected: The Admin API response shows the read_timeout value for the affected service. | Decision rule: If read_timeout is lower than the observed upstream latency, go to step 3; if not, re-triage.
+Engineer output: GET /services/orders-svc -> {"read_timeout": 60000, "connect_timeout": 60000, "write_timeout": 60000, "retries": 5}
+Decision: next — Upstream latency (p50 48s, p95 61s) exceeds the current read_timeout (60s), confirming the root cause aligns with the triage hypothesis.
+Step 3 [read] orders-svc [verified: KONG-INC-001]: Inspect orders-svc health and its own logs.
+Expected: orders-svc health and logs show whether backend slowness or errors explain the upstream timeout. | Decision rule: If orders-svc shows slowness or errors, go to step 4; if healthy, re-triage.
+Engineer output: orders-svc logs: slow query on ORDERS table since 10:35 after an index was dropped in last night's DB change.
+Decision: next — orders-svc logs confirm backend slowness due to a missing index, aligning with the root cause and justifying proceeding to fix the backend slowness.
+Step 4 [change] orders-svc [verified: KONG-INC-001]: Fix the backend slowness in orders-svc.
+Expected: orders-svc latency returns to baseline and its logs no longer show the slowness or errors observed in step 3. | Decision rule: If orders-svc latency recovers, go to step 5; if the fix is not reversible or impact is unclear, stop and escalate to the orders-svc owner.
+Risk: Changing or restarting orders-svc to fix the slowness observed in step 3 can drop in-flight requests and lose their transactions; the orders-svc owner must confirm the specific recovery path before execution.
+Rollback: Revert the orders-svc change using the owner's recorded previous configuration and restart; if the change is not reversible, stop and escalate to the orders-svc owner.
+Engineer output: Not applicable in this environment.
+Decision: escalate — Step 4 is skipped due to 'Not applicable in this environment' and the root cause (missing index) requires backend owner intervention; no reversible fix or rollback path is available without owner approval, so escalation is required.
+Outcome: escalate
+Note: Structured repair for GroundedPlan: LengthFinishReasonError.
+{
+  "symptoms": "Partner calls to /orders/v1/submit through Kong return 504 since 10:40. Kong 3.8, running in containers, DB mode.\nSession outcome: escalate",
+  "signatures": [
+    "upstream timed out"
+  ],
+  "root_causes": [
+    "kong_upstream_timeout"
+  ],
+  "steps_worked": [
+    {
+      "action": "Inspect upstream latency for the affected route in access.log.",
+      "kind": "read",
+      "output": "access.log for POST /orders/v1/submit, last 15 min: upstream latency p50 48s, p95 61s; 504 count 212.",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Inspect the service timeouts with Admin API GET /services/{name}.",
+      "kind": "read",
+      "output": "GET /services/orders-svc -> {\"read_timeout\": 60000, \"connect_timeout\": 60000, \"write_timeout\": 60000, \"retries\": 5}",
+      "risk": "",
+      "rollback": ""
+    },
+    {
+      "action": "Inspect orders-svc health and its own logs.",
+      "kind": "read",
+      "output": "orders-svc logs: slow query on ORDERS table since 10:35 after an index was dropped in last night's DB change.",
+      "risk": "",
+      "rollback": ""
+    }
+  ],
+  "platform": "kong",
+  "category": "TIMEOUT",
+  "version": "3.8",
+  "os": "linux",
+  "environment": "kong-sample",
+  "components": [
+    "kong-dp",
+    "orders-svc"
+  ]
+}
+Problem: Partner calls to /orders/v1/submit through Kong return 504 since 10:40. Kong 3.8, running in containers, DB mode.
+Session outcome: escalate
+Platform/version: kong 3.8; OS: linux
+Environment: kong-sample
+Evidence: upstream timed out
+Steps tried:
+1. [done] Inspect upstream latency for the affected route in access.log.: access.log for POST /orders/v1/submit, last 15 min: upstream latency p50 48s, p95 61s; 504 count 212.
+2. [done] Inspect the service timeouts with Admin API GET /services/{name}.: GET /services/orders-svc -> {"read_timeout": 60000, "connect_timeout": 60000, "write_timeout": 60000, "retries": 5}
+3. [done] Inspect orders-svc health and its own logs.: orders-svc logs: slow query on ORDERS table since 10:35 after an index was dropped in last night's DB change.
+4. [skipped] Fix the backend slowness in orders-svc.: Not applicable in this environment.
+Saved runs/KONG-SC-01-full.json
+
+Exit code: 0

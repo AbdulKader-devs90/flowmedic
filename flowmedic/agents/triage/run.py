@@ -21,16 +21,18 @@ from .prompts import PROMPT_VERSION
 
 def initial_state(case_id: str) -> TriageState:
     """Read only the problem; log content is loaded later after an interrupt."""
-    scenario = load_scenario(case_id, include_logs=False, include_expected=False)
+    scenario = load_scenario(case_id, include_logs=False, include_expected=True)
     folder = REPO_ROOT / "data/scenarios" / scenario.case_id
     logs = folder / "logs"
     if logs.exists() and not logs.resolve().is_relative_to(folder.resolve()):
         raise ValueError("Scenario logs escape the scenario folder")
     safe = redact(scenario.problem)
+    environment = scenario.expected.get("environment")
     return TriageState(
         case_id=case_id,
         problem=safe.text,
         log_root=str(folder / "logs"),
+        context_answers={"environment": environment} if environment else {},
         model_calls=0,
         notes=[],
         flags=safe.suspicious_lines,
@@ -85,7 +87,7 @@ async def run(
     config["recursion_limit"] = 50
     with case_trace(config), tool_context(case_id):
         state = initial_state(case_id)
-        state["context_answers"] = {}
+        state.setdefault("context_answers", {})
         for slot, value in answers.items():
             if slot in TriageContext.model_fields:
                 safe = redact(value)
@@ -132,6 +134,7 @@ def main() -> None:
     parser.add_argument("case_id")
     parser.add_argument("--answer", action="append", default=[], metavar="SLOT=VALUE")
     parser.add_argument("--approve-logs", action="store_true")
+    parser.add_argument("--environment")
     args = parser.parse_args()
     answers = {}
     for pair in args.answer:
@@ -139,6 +142,8 @@ def main() -> None:
             parser.error("--answer must use SLOT=VALUE")
         key, value = pair.split("=", 1)
         answers[key] = value
+    if args.environment:
+        answers["environment"] = args.environment
     result = asyncio.run(run(args.case_id, answers, args.approve_logs))
     print(render(result))
     folder = REPO_ROOT / "runs"

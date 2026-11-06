@@ -194,3 +194,91 @@ approved logs. These are development demonstrations, not held-out evaluation.
 Actual LangSmith API inspection confirmed a single case root with graph/model/tool
 children for all three demos. Lint and formatting passed. Full command output,
 with repository paths normalized to `<repo>`, is in [step-03-validation.txt](step-03-validation.txt).
+
+
+## Step 4: planner, parent graph and environment memory
+
+Implemented log approval/evidence before clarification, component inference from
+profile signatures, engineer-selected scenario environments, configurable defaults
+and Kong's profile default. Classification validates affected_component against the
+reviewed topology and repairs once. Related checks use dependencies before callers.
+Triage first steps are capped at six and scoped to the selected incident and its
+linked runbooks; confidence uses one documented route formula, with a 0.7 penalty
+for actual missing-tool evidence rather than informational notes.
+
+Added structured strong-model planning, step-specific recovery validation,
+engineer step interrupts, confirmation of changes, masked diagnostic interpretation,
+validated insertions (deduplicated against the queue and history), and Command handoffs to triage for new causes (two rounds
+maximum). The initial plan has 5–10 steps; inserted steps use a bounded queue,
+with a 30-observation loop limit and the shared 25-call budget. Blocking lock output
+is parsed explicitly. Final records retain bounded literal engineer observations;
+no model summary can invent execution. Escalations include a vendor case draft.
+
+The parent uses SQLite checkpoints, custom progress events and one LangSmith
+incident trace. Blocking SDK work runs in threads so checkpoint writes can finish.
+MAX_OUTPUT_TOKENS defaults to 16384: the configured reasoning model exhausted an
+8192-token limit while building plans. Strong/alternate request timeouts are
+configurable (180 seconds by default), after live re-planning exhausted the old
+60-second timeout. Fast requests retain 60 seconds. Paths are controlled through config and
+must stay in the repository. Environment memory uses LangGraph SqliteStore when available (as in this install),
+with a JSON fallback under runs,
+storing report/answer context and approved log roots without granting future access.
+
+Approved incident saves use exclusive next-ID allocation and the existing YAML
+front-matter contract, then upsert only the new document. Index retries reuse the
+same document; failed indexing leaves the approved Markdown with a recorded gap.
+Rejected saves do not create files. Automatic demos reject saving by default.
+
+The simulator now selects the most specific unused matching entry (all keywords,
+case-insensitive; file-order ties), consumes entries once across re-triage, and
+falls back to default. Demo validation runs sequentially to avoid SQLite contention.
+The full CLI prints triage, steps, observations, decisions, re-triage and records,
+and writes runs/<case_id>-full.json. The triage-only CLI remains available.
+
+Run from the repository root:
+
+```sh
+uv sync
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest
+uv run python -m flowmedic.run SC-001 --auto --answer version=10.15
+uv run python -m flowmedic.run SC-008 --auto
+uv run python -m flowmedic.run KONG-SC-01 --auto
+# Interactive engineer, with an explicit reviewed environment:
+uv run python -m flowmedic.run SC-001 --environment sample-prod
+# Optional real-model full-graph test:
+uv run pytest -m live tests/test_planner.py
+```
+
+The CLI creates a new incident thread each invocation. The graph/saver API can
+resume a persisted thread with Command(resume=...), verified by rebuilding the
+graph after closing and reopening SQLite. There is no CLI resume flag yet.
+Environment memory uses a separate local SQLite store; the JSON fallback is
+intended for minimal, single-user installations. Fixture matching is lexical, so these
+demos exercise scripted observations rather than real remediation efficacy.
+
+Next: Step 5 Streamlit incident UI, showing progress, evidence, topology, human
+step confirmation and save approval, while retaining the read-only server boundary.
+
+
+### Step 4 final validation and known limitations
+
+Latest completed checks: ruff passed; pytest reported 117 passed and 4 live tests
+deselected. The demos ran sequentially: SC-001 resolved; SC-008 resolved after one
+re-triage and added db_blocking_lock; KONG-SC-01 used the Kong profile and
+kong-sample topology, then escalated. Full latest completed outputs are saved in
+[step-04-validation.txt](step-04-validation.txt). No demo approved a knowledge save.
+
+Known limitations:
+
+- Kong escalates because the simulator has no output for the backend-change step.
+- Lexical, one-use simulator matches can skip valid steps when generated wording differs from fixture keywords.
+- Fast-model interpretation sometimes repeats stale reasoning or overstates the latest evidence.
+- Numbered decision rules remain advisory: next advances sequentially, and insertions can leave stale step references.
+- Strong-model planning can exhaust output or timeout budgets despite the increased limits.
+- The extra SC-001 verification-before-closure live regression was stopped at the user's request; the guard passed its offline test.
+- Persisted incidents can resume through the graph API, but the CLI has no resume flag.
+- Custom KNOWLEDGE_DIR affects saves; retrieval loaders still read the default knowledge directory.
+- Provenance validation checks references and component IDs, not independent semantic entailment of every proposed action.
+- Windows runtime behavior has not been exercised in this environment.

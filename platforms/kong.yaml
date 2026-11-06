@@ -46,3 +46,5 @@ read_only_checks:
 - Admin API GET /services/{name}
 - Admin API GET /upstreams/{name}/health
 - access.log latency fields
+
+default_environment: kong-sample
