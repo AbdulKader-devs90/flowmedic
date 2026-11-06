@@ -1,5 +1,6 @@
 """Platform-filtered hybrid retrieval with interchangeable vector storage."""
 
+import re
 from collections.abc import Sequence
 from typing import Any, Protocol
 
@@ -8,13 +9,13 @@ from pydantic import BaseModel
 from flowmedic.config import REPO_ROOT, ConfigurationError, Settings, get_settings
 from flowmedic.graph.state import KBMatch, Route
 from flowmedic.knowledge.loaders import KnowledgeDoc, load_documents
-from flowmedic.tools.parsers.signatures import normalize_signature
+from flowmedic.tools.parsers.signatures import CODE, normalize_signature
 from flowmedic.tools.redact import redact
 from flowmedic.tracing import traced_tool
 
 
 class VectorHit(BaseModel):
-    """Backend-neutral similarity in [0, 1], larger is better."""
+    """Raw backend cosine similarity, before calibration; larger is better."""
 
     doc_id: str
     score: float
@@ -92,7 +93,7 @@ class ChromaStore:
             query_texts=[redact(text).text], where={"platform": platform}, n_results=k
         )
         return [
-            VectorHit(doc_id=doc_id, score=max(0.0, min(1.0, 1 - distance)))
+            VectorHit(doc_id=doc_id, score=max(-1.0, min(1.0, 1 - distance)))
             for doc_id, distance in zip(
                 result["ids"][0], (result["distances"] or [[]])[0]
             )
@@ -162,7 +163,7 @@ class PineconeStore:
             filter={"platform": {"$eq": platform}},
         )
         return [
-            VectorHit(doc_id=m["id"], score=max(0.0, min(1.0, m["score"])))
+            VectorHit(doc_id=m["id"], score=max(-1.0, min(1.0, m["score"])))
             for m in result["matches"]
         ]
 
@@ -171,6 +172,19 @@ def get_vector_store() -> VectorStore:
     """Select the explicitly configured backend, without silent fallback."""
     return (
         ChromaStore() if get_settings().vector_backend == "chroma" else PineconeStore()
+    )
+
+
+def is_code_signature(signature: str) -> bool:
+    """Recognize whole product/Oracle codes, including product prefix codes."""
+    return bool(CODE.fullmatch(signature) or re.fullmatch(r"ORA-\d{5}", signature))
+
+
+def normalize_vector(raw: float, settings: Settings) -> float:
+    """Linearly calibrate compressed cosine scores to [0, 1]."""
+    return max(
+        0.0,
+        min(1.0, (raw - settings.vec_floor) / (settings.vec_ceil - settings.vec_floor)),
     )
 
 
@@ -184,17 +198,21 @@ def search(
     *,
     store: VectorStore | None = None,
     documents: Sequence[KnowledgeDoc] | None = None,
+    log_text: str | None = None,
+    settings: Settings | None = None,
 ) -> list[KBMatch]:
     """Rerank all platform candidates, including exact hits outside vector top-k.
 
-    Signature overlap is the fraction of query signatures present in a document.
+    Signature coverage is hits divided by the document's signature count.
+    Codes match extracted codes exactly after normalization; phrases match masked
+    log text case-insensitively. If log_text is omitted, query_text is used.
     Version, when supplied, strictly filters version-specific documents. Category
     corroboration is explicit via KBMatch for future classifiers, never inferred
     from the fixture's expected answers.
     """
     if k < 1:
         raise ValueError("k must be positive")
-    settings = get_settings()
+    settings = settings or get_settings()
     all_docs = list(documents) if documents is not None else load_documents()
     docs = [
         d
@@ -207,17 +225,34 @@ def search(
     hits = (store or get_vector_store()).query(
         redact(query_text).text, platform, max(k, len(all_docs))
     )
-    scores = {h.doc_id: max(0.0, min(1.0, h.score)) for h in hits}
+    scores = {h.doc_id: h.score for h in hits}
+    masked_logs = redact(log_text if log_text is not None else query_text).text
     requested = {normalize_signature(s) for s in signatures}
     matches: list[KBMatch] = []
     for doc in docs:
-        doc_signatures = {normalize_signature(s) for s in doc.signatures}
-        overlap = sorted(requested & doc_signatures)
-        vector = scores.get(doc.doc_id, 0.0)
+        doc_signatures = {
+            normalize_signature(s) if is_code_signature(s) else s.strip()
+            for s in doc.signatures
+            if s.strip()
+        }
+        overlap = sorted(
+            signature
+            for signature in doc_signatures
+            if (
+                signature in requested
+                if is_code_signature(signature)
+                else signature.casefold() in masked_logs.casefold()
+            )
+        )
+        raw_vector = scores.get(doc.doc_id)
+        vector = (
+            normalize_vector(raw_vector, settings) if raw_vector is not None else 0.0
+        )
         if doc.doc_id not in scores and not overlap:
             continue
-        score = settings.kb_vector_weight * vector + settings.kb_signature_weight * (
-            len(overlap) / len(requested) if requested else 0.0
+        coverage = len(overlap) / len(doc_signatures) if doc_signatures else 0.0
+        score = (
+            settings.kb_vector_weight * vector + settings.kb_signature_weight * coverage
         )
         matches.append(
             KBMatch(
@@ -227,18 +262,20 @@ def search(
                 score=score,
                 signature_hits=overlap,
                 vector_score=vector,
+                raw_vector_score=raw_vector if raw_vector is not None else 0.0,
+                signature_score=coverage,
             )
         )
     return sorted(matches, key=lambda m: (-m.score, m.doc_id))[:k]
 
 
 @traced_tool
-def route_for(matches: Sequence[KBMatch]) -> Route:
+def route_for(matches: Sequence[KBMatch], *, settings: Settings | None = None) -> Route:
     """A high semantic score alone cannot establish a known fix."""
     if not matches:
         return Route.NEW_ISSUE
     best = max(matches, key=lambda m: m.score)
-    settings = get_settings()
+    settings = settings or get_settings()
     if best.score >= settings.kb_known_fix and (
         best.signature_hits or best.category_match
     ):

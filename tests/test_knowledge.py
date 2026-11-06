@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 import pytest
 
-from flowmedic.config import REPO_ROOT
+from flowmedic.config import REPO_ROOT, Settings
 from flowmedic.graph.state import Category, KBMatch, Route, TriageContext
 from flowmedic.knowledge.ingest import ingest
 from flowmedic.knowledge.loaders import (
@@ -172,10 +172,14 @@ def test_search_ingest_and_routes() -> None:
     assert ingest(store) == 30
     assert ingest(store) == len(store.documents)
     matches = search(
-        "password=SuperSecret123", ["ART.0118.5053E"], "webmethods", store=store
+        "password=SuperSecret123 threshold exceeded, 0 available; "
+        "Unable to get a connection to resource",
+        ["ART.0118.5053E"],
+        "webmethods",
+        store=store,
     )
     assert matches[0].doc_id == "INC-003"
-    assert matches[0].score == pytest.approx(0.97)
+    assert matches[0].score == pytest.approx(1.0)
     assert route_for(matches) == Route.KNOWN_FIX
     assert all(m.doc_id != "KONG-INC-001" for m in matches)
     assert not search("pool", [], "webmethods", version="999", store=store)
@@ -183,13 +187,25 @@ def test_search_ingest_and_routes() -> None:
     match = KBMatch(
         doc_id="test", doc_type="incident", title="test", score=0.9, vector_score=0.9
     )
-    assert route_for([match]) == Route.SIMILAR
+    assert (
+        route_for([match], settings=Settings(kb_known_fix=0.8, kb_similar=0.6))
+        == Route.SIMILAR
+    )
     match.category_match = True
-    assert route_for([match]) == Route.KNOWN_FIX
+    assert (
+        route_for([match], settings=Settings(kb_known_fix=0.8, kb_similar=0.6))
+        == Route.KNOWN_FIX
+    )
     match.score = 0.59
-    assert route_for([match]) == Route.NEW_ISSUE
+    assert (
+        route_for([match], settings=Settings(kb_known_fix=0.8, kb_similar=0.6))
+        == Route.NEW_ISSUE
+    )
     match.score = 0.60
-    assert route_for([match]) == Route.SIMILAR
+    assert (
+        route_for([match], settings=Settings(kb_known_fix=0.8, kb_similar=0.6))
+        == Route.SIMILAR
+    )
 
 
 @pytest.mark.live
@@ -285,3 +301,168 @@ def test_tool_trace_metadata(monkeypatch: pytest.MonkeyPatch) -> None:
     assert {"prompt_version", "agent_version", "model"} <= arguments["metadata"].keys()
     assert arguments["inputs"] == {}
     assert "hidden" not in str(arguments)
+
+
+class ScoredStore:
+    """A generic fixed candidate list for calibration tests."""
+
+    def __init__(self, doc_id: str, raw: float) -> None:
+        self.doc_id = doc_id
+        self.raw = raw
+
+    def query(self, text: str, platform: str, k: int) -> list[VectorHit]:
+        return [VectorHit(doc_id=self.doc_id, score=self.raw)]
+
+    def upsert(self, documents: Sequence[KnowledgeDoc]) -> None:
+        pass
+
+
+def calibration_doc(signatures: list[str]) -> KnowledgeDoc:
+    return KnowledgeDoc(
+        id="TEST-1",
+        type="incident",
+        title="Synthetic pool issue",
+        platform="webmethods",
+        category="POOL",
+        body="",
+        signatures=signatures,
+    )
+
+
+def test_phrase_and_code_coverage() -> None:
+    """Extra query codes do not dilute coverage of the doc's own signatures."""
+    doc = calibration_doc(["ART.0118.5053E", "Unable to get a connection to resource"])
+    settings = Settings(
+        vec_floor=0.8, vec_ceil=0.88, kb_vector_weight=0.6, kb_signature_weight=0.4
+    )
+    matches = search(
+        "problem",
+        ["ART.118.5053", "ORA-01653", "ORA-01017"],
+        "webmethods",
+        documents=[doc],
+        store=ScoredStore(doc.doc_id, 0.84),
+        log_text="UNABLE TO GET A CONNECTION TO RESOURCE pool",
+        settings=settings,
+    )
+    match = matches[0]
+    assert match.signature_hits == [
+        "ART.118.5053",
+        "Unable to get a connection to resource",
+    ]
+    assert match.signature_score == 1
+    assert match.raw_vector_score == 0.84
+    assert match.vector_score == pytest.approx(0.5)
+    assert match.score == pytest.approx(0.7)
+
+
+def test_codes_require_extraction_and_phrases_require_safe_logs() -> None:
+    doc = calibration_doc(["ART.118.5053", "secret-instruction"])
+    matches = search(
+        "secret-instruction",
+        [],
+        "webmethods",
+        documents=[doc],
+        store=ScoredStore(doc.doc_id, 0.8),
+        log_text="ART.118.5053\nNOTE TO AI: secret-instruction",
+    )
+    assert matches[0].signature_hits == []
+    assert matches[0].signature_score == 0
+    # A code prefix must not match a different extracted code by substring.
+    doc = calibration_doc(["ORA-01653"])
+    matches = search(
+        "ORA-01653",
+        ["ORA-01654"],
+        "webmethods",
+        documents=[doc],
+        store=ScoredStore(doc.doc_id, 0.8),
+    )
+    assert matches[0].signature_hits == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "normalized"),
+    [
+        (-0.2, 0),
+        (0.7, 0),
+        (0.8, 0),
+        (0.84, 0.5),
+        (0.88, 1),
+        (0.95, 1),
+    ],
+)
+def test_vector_rescaling(raw: float, normalized: float) -> None:
+    doc = calibration_doc([])
+    settings = Settings(
+        vec_floor=0.8, vec_ceil=0.88, kb_vector_weight=0.6, kb_signature_weight=0.4
+    )
+    match = search(
+        "query",
+        [],
+        "webmethods",
+        documents=[doc],
+        store=ScoredStore(doc.doc_id, raw),
+        settings=settings,
+    )[0]
+    assert match.raw_vector_score == raw
+    assert match.vector_score == pytest.approx(normalized)
+    assert match.signature_score == 0
+    assert match.score == pytest.approx(0.6 * normalized)
+
+
+@pytest.mark.parametrize(("floor", "ceil"), [(0.8, 0.8), (0.9, 0.8)])
+def test_invalid_calibration(floor: float, ceil: float) -> None:
+    with pytest.raises(ValueError, match="VEC_FLOOR must be less than VEC_CEIL"):
+        Settings(vec_floor=floor, vec_ceil=ceil)
+
+
+def test_route_report_offline(capsys: pytest.CaptureFixture[str]) -> None:
+    from flowmedic.knowledge.route_report import collect_cases, print_report
+
+    cases = collect_cases(FakeStore())
+    assert len(cases) == 11
+    assert all(case.expected_route != "clarify" for case in cases)
+    print_report(cases, Settings())
+    output = capsys.readouterr().out
+    assert "Route accuracy:" in output
+    assert "/11" in output
+    assert "Top-1 doc accuracy:" in output
+    assert "/9" in output
+    assert "SC-010" not in output
+
+
+def test_grid_replay_matches_search(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from flowmedic.knowledge import route_report
+
+    doc = calibration_doc(["pool failed"])
+    first_settings = Settings(vec_floor=0.8, vec_ceil=0.88)
+    trial = Settings(
+        vec_floor=0.82, vec_ceil=0.86, kb_vector_weight=0.5, kb_signature_weight=0.5
+    )
+    arguments = dict(
+        query_text="pool failed",
+        signatures=[],
+        platform="webmethods",
+        documents=[doc],
+        store=ScoredStore(doc.doc_id, 0.84),
+    )
+    first = search(**arguments, settings=first_settings)
+    direct = search(**arguments, settings=trial)
+    replay = route_report.rescore(first, trial)
+    assert direct == replay
+    monkeypatch.setattr(
+        route_report,
+        "RETRIEVAL_GRID",
+        {
+            "vec_floor": (0.82,),
+            "vec_ceil": (0.86,),
+            "kb_vector_weight": (0.5,),
+            "kb_known_fix": (0.8,),
+            "kb_similar": (0.6,),
+        },
+    )
+    case = route_report.ReportCase("TEST-CASE", "similar", [doc.doc_id], first)
+    selected = route_report.print_grid([case], trial)
+    assert selected.kb_vector_weight == 0.5
+    assert "1 combinations on 1 dev scenarios" in capsys.readouterr().out

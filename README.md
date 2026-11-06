@@ -57,11 +57,32 @@ into `.cache/chroma/` on first use. It needs internet for that initial download,
 but no API key. All content/config paths resolve from the repository root.
 
 Hybrid scores use `KB_VECTOR_WEIGHT=0.6` and `KB_SIGNATURE_WEIGHT=0.4`.
-Signature overlap is the fraction of distinct extracted query signatures present
-in the document after code normalization. Version, when supplied, filters documents
-with incompatible version lists. `KB_KNOWN_FIX=0.80` requires a signature or explicit
-category corroboration; `KB_SIMILAR=0.60` returns similar candidates. The CLI uses
-only fixture platform/context, problem and logs, never expected diagnoses.
+Cosine similarity is calibrated with
+`clamp((raw - VEC_FLOOR) / (VEC_CEIL - VEC_FLOOR), 0, 1)`; the defaults are
+`VEC_FLOOR=0.80` and `VEC_CEIL=0.86` for multilingual-e5-large. `KBMatch` retains
+both `raw_vector_score` and calibrated `vector_score`. Retune for other embedding
+models, including Chroma's default local model.
+
+Signature coverage is the fraction of the document's own signatures matched:
+normalized error codes match extracted codes exactly, while phrase signatures
+match case-insensitively in masked logs. Version, when supplied, filters documents
+with incompatible version lists. `KB_KNOWN_FIX=0.60` requires a signature or explicit
+category corroboration; `KB_SIMILAR=0.40` returns similar candidates. These defaults
+were tuned on 11 development scenarios, pending the larger Week 4 golden set.
+The CLIs use fixture platform/context, problem and logs for retrieval; expected
+routes and KB IDs are used only to evaluate predictions.
+
+```sh
+uv run python -m flowmedic.knowledge.route_report
+# Print the complete parameter grid; reuse each scenario's raw retrieval results.
+uv run python -m flowmedic.knowledge.route_report --grid
+```
+
+The report excludes clarification scenarios. PASS requires the correct route and,
+where expected KB IDs are supplied, a matching top document. Route accuracy covers
+all eligible scenarios; top-1 doc accuracy covers only scenarios with expected KB
+IDs. Existing `.env` overrides take precedence over defaults; update any older
+calibration/threshold entries to the values in `.env.example` when adopting them.
 
 Tools emit LangSmith spans when configured, with version/model/case metadata.
 Raw diagnostic arguments and results are omitted from spans; secrets are masked

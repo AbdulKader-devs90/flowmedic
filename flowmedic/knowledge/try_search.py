@@ -33,6 +33,7 @@ def run_search(case_id: str) -> None:
             platform,
             version=scenario.expected.get("given_context", {}).get("version"),
             k=3,
+            log_text="\n".join(scenario.logs.values()),
         )
     except ConfigurationError as exc:
         raise SystemExit(str(exc)) from exc
@@ -40,6 +41,7 @@ def run_search(case_id: str) -> None:
     for match in matches:
         print(
             f"{match.doc_id} score={match.score:.3f} vector={match.vector_score:.3f} "
+            f"raw={match.raw_vector_score:.3f} "
             f"signatures={len(match.signature_hits)} | {match.title}"
         )
     print(f"Route: {route_for(matches).value}")

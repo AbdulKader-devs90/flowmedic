@@ -84,7 +84,7 @@ class Evidence(BaseModel):
 
 
 class KBMatch(BaseModel):
-    """Hybrid score and the evidence supporting it."""
+    """Hybrid score, calibrated vector_score, raw cosine and signature coverage."""
 
     doc_id: str
     doc_type: Literal["incident", "runbook"]
@@ -92,6 +92,8 @@ class KBMatch(BaseModel):
     score: float = Field(ge=0, le=1)
     signature_hits: list[str] = Field(default_factory=list)
     vector_score: float = Field(ge=0, le=1)
+    raw_vector_score: float = Field(default=0, ge=-1, le=1)
+    signature_score: float = Field(default=0, ge=0, le=1)
     category_match: bool = False
 
 
