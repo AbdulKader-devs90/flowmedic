@@ -1,0 +1,5 @@
+2026-11-06 10:31:02 GST [ISS.0014.0023I] (tid=88) Server thread pool: 1180 of 1200 threads in use
+2026-11-06 10:33:15 GST [ISS.0128.0001E] (tid=4022) Login has timed out while connecting to ISInternal pool
+2026-11-06 10:33:15 GST [ISC.0064.9314W] (tid=4022) JDBC pool ISInternal threshold exceeded, 0 available
+2026-11-06 10:34:40 GST [ISS.0095.0020E] (tid=4105) fail-fast: audit logging disabled for 60 s after repeated DB failures
+2026-11-06 10:36:02 GST [ISS.0128.0001E] (tid=4188) Login has timed out while connecting to ISCoreAudit pool

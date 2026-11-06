@@ -1,0 +1,1 @@
+2026/11/03 10:42:17 [error] 1287#0: *45812 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 10.0.1.25, server: kong, request: "POST /orders/v1/submit HTTP/1.1", upstream: "http://10.0.2.40:8080/orders/submit", host: "api.example.local"

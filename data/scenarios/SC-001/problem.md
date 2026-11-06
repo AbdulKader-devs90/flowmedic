@@ -1,0 +1,1 @@
+The Orders API is returning HTTP 500 to all callers since about 10:40. server.log shows the JDBC adapter pool has 0 connections available. Platform is webMethods Integration Server on Linux, production cluster.

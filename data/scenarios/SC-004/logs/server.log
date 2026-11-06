@@ -1,0 +1,2 @@
+2026-11-05 09:12:44 GST [ISS.0153.0091W] (tid=5501) JMS trigger OrdersEvents.triggers:onOrder: channel object is obsolete, reconnecting
+2026-11-05 09:12:45 GST [ISS.0153.0091W] (tid=5502) JMS trigger OrdersEvents.triggers:onOrder: channel object is obsolete, reconnecting

@@ -1,0 +1,69 @@
+id: webmethods
+name: IBM webMethods Integration (Integration Server, API Gateway, Universal Messaging, Terracotta)
+versions:
+- '10.5'
+- '10.7'
+- '10.11'
+- '10.15'
+- '11.1'
+os:
+- linux
+- windows
+clarify_slots:
+  required:
+  - component
+  - version
+  - os
+  optional:
+  - environment
+  - start_time
+  - scope
+  - recent_changes
+components:
+- type: integration_server
+  logs:
+  - server.log
+  - wrapper.log
+  - error.log
+  error_patterns:
+  - ISS\.\d{4}\.\d{4}[A-Z]
+  - ART\.\d{3,4}\.\d{4}[A-Z]?
+  - Login has timed out
+  - fail-fast
+  - threshold exceeded, \d+ available
+  - OutOfMemoryError
+  - PKIX path building failed
+  - Algorithm negotiation fail
+- type: api_gateway
+  logs:
+  - server.log
+  - gateway analytics
+  error_patterns:
+  - '504'
+  - Read timed out
+  - Access is denied
+- type: universal_messaging
+  logs:
+  - nirvana.log
+  error_patterns:
+  - channel object is obsolete
+- type: terracotta
+  logs:
+  - terracotta-server.log
+  error_patterns:
+  - ISS\.0033\.0154E
+  - ISS\.0033\.0155E
+  - REJOIN
+doc_sources:
+  trusted:
+  - ibm.com/docs
+  - ibm.com/support
+  - community.ibm.com
+  - documentation.softwareag.com
+  - tech.forums.softwareag.com
+  fallback: open web
+read_only_checks:
+- Admin UI Statistics and Sessions pages
+- thread dumps (jstack or kill -3)
+- grep of server.log and wrapper.log
+- JDBC pool test in Admin UI

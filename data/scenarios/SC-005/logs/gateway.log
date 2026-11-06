@@ -1,0 +1,2 @@
+2026-11-05 11:20:31 GST [YAI.0400.0012E] Routing to http://is-cluster:5555/rest/CustomersApi/profile failed: Read timed out after 30000 ms; returning 504
+2026-11-05 11:21:02 GST [YAI.0400.0012E] Routing to http://is-cluster:5555/rest/CustomersApi/profile failed: Read timed out after 30000 ms; returning 504

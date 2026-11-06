@@ -1,0 +1,17 @@
+id: linux
+name: Linux host
+components:
+- type: host
+  logs:
+  - /var/log/messages
+  error_patterns:
+  - 'Out of memory: Killed process'
+read_only_checks:
+- uptime
+- free -m
+- vmstat 5 5
+- ss -tnp
+- cat /proc/<pid>/status
+doc_sources:
+  trusted: []
+  fallback: open web

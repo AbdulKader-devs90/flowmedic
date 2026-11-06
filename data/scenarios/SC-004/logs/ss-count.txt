@@ -1,0 +1,5 @@
+is-node-a $ ss -tnp | grep -cE '10.0.0.35\]?:9000'
+1052
+is-node-b $ ss -tnp | grep -cE '10.0.0.35\]?:9000'
+1018
+(about 150 per node right after a restart)

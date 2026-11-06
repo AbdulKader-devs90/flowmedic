@@ -1,0 +1,48 @@
+id: kong
+name: Kong Gateway (light profile)
+versions:
+- '3.4'
+- '3.6'
+- '3.8'
+- '3.9'
+os:
+- linux
+- container
+clarify_slots:
+  required:
+  - version
+  - deployment_mode
+  optional:
+  - environment
+  - start_time
+  - route
+components:
+- type: kong_data_plane
+  logs:
+  - error.log
+  - access.log
+  error_patterns:
+  - upstream timed out
+  - failure to get a peer from the ring-balancer
+  - no healthy upstream
+  - \[healthcheck\]
+- type: kong_control_plane
+  logs:
+  - error.log
+  error_patterns: []
+- type: postgres_config_store
+  logs:
+  - postgresql.log
+  error_patterns:
+  - could not connect
+doc_sources:
+  trusted:
+  - docs.konghq.com
+  - developer.konghq.com
+  - support.konghq.com
+  - discuss.konghq.com
+  fallback: open web
+read_only_checks:
+- Admin API GET /services/{name}
+- Admin API GET /upstreams/{name}/health
+- access.log latency fields

@@ -1,0 +1,3 @@
+tsa-1:9540  state: PASSIVE-STANDBY  (was ACTIVE-COORDINATOR until 14:03:05)
+tsa-2:9540  state: ACTIVE-COORDINATOR
+tsa-1 host: swap used 6.1 GB of 8 GB, si 420, so 380

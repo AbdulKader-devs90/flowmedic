@@ -1,0 +1,14 @@
+# Fixed triage labels. Severity: P1 service down, P2 major degradation, P3 partial, P4 no user impact.
+categories:
+  CONN: 'Connectivity: connection refused or reset, DNS failure, SSL handshake, PKIX path errors, SFTP negotiation'
+  TIMEOUT: 'Timeout and session: read timeout, gateway 504, session expired, idle timeout'
+  AUTH: 'Authentication and security: 401/403, token rejected, certificate expired, slow auth hashing'
+  POOL: 'Thread and connection pools: JDBC pool 0 available, threads waiting on getConnection, thread limit reached'
+  RESOURCE: 'Memory, CPU, swap: OutOfMemoryError, high GC, swap in/out, load average spike'
+  DB: 'Database: login timeout, blocking sessions, row locks, ORA- errors, tablespace full'
+  MSG: 'Messaging: session leak, queue backlog, obsolete channel, consumer stuck'
+  CLUSTER: 'Cluster and cache: cache rejoin, active swap, cache configuration conflicts'
+  DEPLOY: 'Deployment and config: package load failure, config change, start-up errors after a release'
+  DATA: 'Payload and mapping: schema validation, mapping exceptions, bad data'
+  OUTAGE: 'Multi-cause outage: node down, several categories at once'
+  UNKNOWN: 'Not enough evidence: the agent must ask for more information'

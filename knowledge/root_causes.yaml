@@ -1,0 +1,68 @@
+# Controlled root-cause IDs. Incidents, scenarios and evals use these IDs.
+root_causes:
+  jdbc_pool_exhausted:
+    category: POOL
+    description: Adapter JDBC pool has no free connections (slow queries, leaked or stale connections)
+  db_credentials_changed:
+    category: POOL
+    description: Adapter connection fails because the DB password changed or the account is locked
+  server_thread_pool_exhausted:
+    category: POOL
+    description: Integration Server thread pool at its limit; threads hung or blocked
+  db_login_timeout:
+    category: DB
+    description: IS internal DB pools time out on login; DB sessions exhausted or listener slow
+  db_blocking_lock:
+    category: DB
+    description: A database session holds locks that block other sessions
+  tablespace_full:
+    category: DB
+    description: Audit or document-history tablespace cannot extend (ORA-01653 / ORA-01654)
+  auth_hashing_thread_pileup:
+    category: AUTH
+    description: Per-call Basic auth password hashing (PBKDF2) saturates CPU and threads
+  token_rejected_after_restart:
+    category: AUTH
+    description: Tokens or credentials rejected on one node after a restart
+  terracotta_active_swap:
+    category: CLUSTER
+    description: Terracotta active server swapped or stalled; IS cache rejoin and put timeouts
+  cache_config_conflict:
+    category: CLUSTER
+    description: Distributed cache settings differ between nodes or the server array
+  um_session_leak:
+    category: MSG
+    description: Sessions from IS to Universal Messaging grow without closing
+  host_swap_pressure:
+    category: RESOURCE
+    description: Host or JVM memory does not fit in RAM; heavy swapping
+  heap_oom:
+    category: RESOURCE
+    description: JVM heap OutOfMemoryError from large payloads or retained objects
+  metaspace_oom:
+    category: RESOURCE
+    description: JVM Metaspace OutOfMemoryError from repeated package reloads or class leaks
+  ssl_pkix_trust:
+    category: CONN
+    description: Missing or expired CA in the truststore for an outbound HTTPS call
+  sftp_algorithm_mismatch:
+    category: CONN
+    description: SFTP server and client share no key-exchange, cipher or host-key algorithm
+  backend_connection_refused:
+    category: CONN
+    description: Backend endpoint refuses connections (wrong port, service down, firewall)
+  gateway_is_read_timeout:
+    category: TIMEOUT
+    description: API gateway read timeout shorter than the IS service response time
+  package_load_failure:
+    category: DEPLOY
+    description: Package fails to load after deploy (missing dependency or startup service error)
+  kong_upstream_timeout:
+    category: TIMEOUT
+    description: Kong service read timeout shorter than the upstream response time
+  kong_no_healthy_upstream:
+    category: CONN
+    description: Kong health checks mark all upstream targets unhealthy
+  no_fault_found:
+    category: UNKNOWN
+    description: Reported symptom not supported by the evidence; more data needed

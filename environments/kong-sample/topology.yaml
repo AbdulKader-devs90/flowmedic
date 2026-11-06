@@ -1,0 +1,18 @@
+environment: kong-sample
+platform: kong
+version: "3.8"
+os: container
+note: Anonymized sample for the light Kong profile.
+components:
+  - {id: partners, type: consumer_group}
+  - {id: kong-dp, type: kong_data_plane, nodes: [kong-dp-1, kong-dp-2]}
+  - {id: kong-cp, type: kong_control_plane}
+  - {id: kong-db, type: postgres_config_store}
+  - {id: orders-svc, type: backend_systems}
+  - {id: customers-svc, type: backend_systems}
+links:
+  - {from: partners, to: kong-dp, kind: https}
+  - {from: kong-dp, to: kong-cp, kind: config_sync, hard: false}
+  - {from: kong-cp, to: kong-db, kind: postgres, hard: true}
+  - {from: kong-dp, to: orders-svc, kind: http, hard: true}
+  - {from: kong-dp, to: customers-svc, kind: http, hard: true}

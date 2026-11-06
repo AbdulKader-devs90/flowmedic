@@ -1,0 +1,14 @@
+id: windows
+name: Windows host
+components:
+- type: host
+  logs:
+  - 'Event Viewer: Application, System'
+  error_patterns: []
+read_only_checks:
+- Task Manager / Resource Monitor
+- Get-Process
+- netstat -ano
+doc_sources:
+  trusted: []
+  fallback: open web

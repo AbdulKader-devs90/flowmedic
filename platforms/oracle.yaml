@@ -1,0 +1,21 @@
+id: oracle
+name: Oracle Database (as used by integration platforms)
+versions:
+- 19c
+- 21c
+- 23ai
+components:
+- type: oracle
+  logs:
+  - alert.log
+  - listener.log
+  error_patterns:
+  - ORA-\d{5}
+read_only_checks:
+- v$session blocking_session query (DBA)
+- tablespace usage (DBA)
+- sessions by machine (DBA)
+doc_sources:
+  trusted:
+  - docs.oracle.com
+  fallback: open web

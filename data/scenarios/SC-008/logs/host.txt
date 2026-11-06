@@ -1,0 +1,3 @@
+uptime: load average: 1013.4, 990.2, 870.6 (4 cores)
+free -m: Mem total 31890, used 31201; Swap total 8191, used 5980
+vmstat: si 512 so 470

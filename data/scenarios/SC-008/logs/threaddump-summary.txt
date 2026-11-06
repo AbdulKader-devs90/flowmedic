@@ -1,0 +1,4 @@
+is-node-b thread dump 10:35 (1,214 threads)
+  812  HTTP Handler  at com.sun.crypto.provider.PBKDF2KeyImpl.deriveKey   (client 10.0.0.68 = api gateway)
+  301  HTTP Handler  at com.wm.app.b2b.server.jdbc.WmConnectionPool.getConnection
+   41  other

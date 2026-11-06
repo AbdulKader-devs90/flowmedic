@@ -1,0 +1,2 @@
+2026-11-06 06:00:04 GST [ISS.0129.0002E] (tid=7710) pub.client.sftp:login failed for alias PARTNER_X_SFTP: com.jcraft.jsch.JSchException: Algorithm negotiation fail
+2026-11-06 06:15:04 GST [ISS.0129.0002E] (tid=7744) pub.client.sftp:login failed for alias PARTNER_X_SFTP: com.jcraft.jsch.JSchException: Algorithm negotiation fail

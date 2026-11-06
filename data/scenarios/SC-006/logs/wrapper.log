@@ -1,0 +1,3 @@
+INFO   | jvm 1    | 2026/11/05 15:02:11 | java.lang.OutOfMemoryError: Metaspace
+INFO   | jvm 1    | 2026/11/05 15:02:11 |   at java.base/java.lang.ClassLoader.defineClass1(Native Method)
+STATUS | wrapper  | 2026/11/05 15:02:14 | JVM exited unexpectedly. Restarting JVM.

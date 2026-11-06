@@ -1,0 +1,4 @@
+2026-11-02 14:03:11 GST [ISS.0033.0154E] (tid=2201) Cache SessionCache: put operation timed out after 30000 ms
+2026-11-02 14:03:12 GST [ISS.0033.0155E] (tid=2201) Cache manager SoftwareAG.IS.Services lost connection to Terracotta Server Array
+2026-11-02 14:03:40 GST [ISS.0033.0161I] (tid=97) Cache manager SoftwareAG.IS.Services REJOIN in progress
+2026-11-02 14:05:02 GST [ISS.0033.0162I] (tid=97) Cache manager SoftwareAG.IS.Services rejoined Terracotta Server Array

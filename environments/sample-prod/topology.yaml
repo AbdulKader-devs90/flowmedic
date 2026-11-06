@@ -1,0 +1,27 @@
+environment: sample-prod
+platform: webmethods
+version: "10.15"
+os: linux
+note: Anonymized sample. Aliases only, no real IPs or hostnames.
+components:
+  - {id: gov-consumers, type: consumer_group, via: GSB}
+  - {id: private-consumers, type: consumer_group, via: api-marketplace}
+  - {id: ent-gw, type: enterprise_gateway, zone: dmz}
+  - {id: api-gw, type: api_gateway, nodes: [gw-1, gw-2, gw-3]}
+  - {id: digital-gw, type: api_gateway}
+  - {id: is-cluster, type: integration_server, nodes: [is-node-a, is-node-b], logs: [server.log, wrapper.log]}
+  - {id: tsa, type: terracotta, nodes: [tsa-1, tsa-2], mode: active_passive}
+  - {id: um, type: universal_messaging, nodes: [um-1]}
+  - {id: is-db, type: oracle, roles: [ISInternal, ISCoreAudit, DocumentHistory]}
+  - {id: backends, type: backend_systems}
+links:
+  - {from: gov-consumers, to: ent-gw, kind: https}
+  - {from: private-consumers, to: ent-gw, kind: https}
+  - {from: ent-gw, to: api-gw, kind: https}
+  - {from: ent-gw, to: digital-gw, kind: https}
+  - {from: api-gw, to: is-cluster, kind: https, auth: basic}
+  - {from: digital-gw, to: is-cluster, kind: https}
+  - {from: is-cluster, to: tsa, kind: cluster_cache, hard: true}
+  - {from: is-cluster, to: um, kind: messaging, hard: true}
+  - {from: is-cluster, to: is-db, kind: jdbc, hard: true}
+  - {from: is-cluster, to: backends, kind: jdbc_http, hard: false}

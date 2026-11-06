@@ -1,0 +1,6 @@
+2026-11-03 10:39:58 GST [ISP.0090.0004I] (tid=4412) OrdersApi.v1:submitOrder started
+2026-11-03 10:40:12 GST [ART.0118.5036W] (tid=4421) Adapter Runtime (Pooling): Connection pool OrdersDB_Pool threshold exceeded, 0 available, 15 in use, max 15
+2026-11-03 10:40:22 GST [ART.0118.5053E] (tid=4433) Adapter Runtime (Connection): Unable to get a connection to resource OrdersApi.connections:OrdersDB_Pool. Block timeout of 10000 ms expired.
+2026-11-03 10:40:22 GST [ART.0117.4012E] (tid=4433) Adapter Runtime (Adapter Service): Unable to run adapter service OrdersApi.db:insertOrder.
+2026-11-03 10:41:05 GST [ART.0118.5053E] (tid=4459) Adapter Runtime (Connection): Unable to get a connection to resource OrdersApi.connections:OrdersDB_Pool. Block timeout of 10000 ms expired.
+2026-11-03 10:42:40 GST [ART.0118.5053E] (tid=4470) Adapter Runtime (Connection): Unable to get a connection to resource OrdersApi.connections:OrdersDB_Pool. Block timeout of 10000 ms expired.
