@@ -343,3 +343,22 @@ engineer check followed by a continuing decision, not independent health proof.
 Windows runtime remains untested.
 
 Next: Step 5b React UI consuming the HTTP endpoints and structured human approvals.
+
+## Impeccable init: existing product context
+
+Preserved all existing PRODUCT.md text and appended the product-schema marker,
+web platform, operating context, constraints, evidence sources and established
+accessibility requirements. DESIGN.md remains unchanged. No UI code was created.
+Facts were drawn from the existing product/design docs, README and Step 5a/5b
+records; no new product decisions or visual direction were introduced.
+
+Review with `git diff -- PRODUCT.md DESIGN.md docs/progress.md`. This is a
+documentation-only update; no app, tests or live model calls were run. The
+Impeccable launcher was not run because its cache/download behavior can write
+outside the repository; existing context was read directly instead. The optional
+build-path preference is now explicitly confirmed as code-first and saved as
+`"buildPath": "code"` in `.impeccable/config.json`. Existing local hook consent
+is preserved. No live-mode configuration was added because the web UI
+is not implemented yet.
+
+Next: Step 5b war-room UI, following PRODUCT.md and DESIGN.md.

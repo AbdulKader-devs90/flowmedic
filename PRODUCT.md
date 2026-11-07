@@ -14,3 +14,34 @@
 **Primary screen:** the incident war room (left: incidents; centre: timeline with action cards; right: triage card + topology map, then the plan stepper).
 
 **Tone:** calm, precise, engineering-grade. Short labels. No marketing copy inside the app.
+
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
+## Operating Context
+
+- The planned web interface runs against the local HTTP API from Step 5a; the UI is the next implementation step, in `app/web/`.
+- The engineer selects an environment, supplies a problem and log exports, approves log access, answers clarification questions, and reports each manually executed step's result.
+- Incident checkpoints persist locally. Environment memory retains confirmed context but does not authorize future log access.
+- The current local API supports one server worker and one active event stream per incident. A paused stream is not a completed incident.
+
+## Capabilities and Constraints
+
+- The assistant never executes remediation commands or writes to remote servers. Knowledge saves require explicit human approval.
+- Diagnostic secrets are masked; instruction-like log content is quarantined rather than treated as instructions.
+- Missing reviewed topology is an evidence gap. A completed engineer check does not independently prove a component is healthy.
+- Product code must support Windows and macOS; Windows runtime behavior has not yet been exercised.
+- The current interface scope is desktop and laptop web use; mobile is out of scope, and a light theme is deferred, as specified in DESIGN.md.
+
+## Evidence on Hand
+
+- `data/scenarios/` contains synthetic, anonymized problem reports, log exports and expected labels for development demonstrations and evaluation.
+- `knowledge/incidents/` and `knowledge/runbooks/` supply existing incident and runbook content. Demo results are development evidence, not held-out validation or proof of remediation efficacy.
+- `docs/prompts/step-05b-ui.md` records the planned UI scope and stack. `DESIGN.md` remains the visual source of truth.
+
+## Accessibility & Inclusion
+
+- Respect reduced-motion preferences throughout the interface and maintain text contrast of at least 4.5:1, as required by DESIGN.md.
