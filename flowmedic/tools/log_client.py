@@ -12,6 +12,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 
 from flowmedic.config import REPO_ROOT, get_settings
+from flowmedic.tools.environment_memory import local_path
 from mcp_servers.log_reader.server import LogReader
 
 
@@ -28,6 +29,7 @@ class LogClient:
             (p if p.is_absolute() else REPO_ROOT / p).resolve()
             for p in get_settings().log_roots
         ]
+        allowed.append(local_path(get_settings().runs_dir / "uploads").resolve())
         resolved = [(p if p.is_absolute() else REPO_ROOT / p).resolve() for p in roots]
         if any(not any(p.is_relative_to(root) for root in allowed) for p in resolved):
             raise ValueError(

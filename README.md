@@ -216,3 +216,70 @@ precedence over the last confirmed environment for the platform; defaults are `D
 `RUNS_DIR` and `KNOWLEDGE_DIR` may be configured to other in-repository folders.
 Unit tests use fake models and temporary knowledge directories; real full-graph
 coverage is opt-in with `uv run pytest -m live tests/test_planner.py`.
+
+### Local HTTP API (Step 5a)
+
+```sh
+uv sync
+uv run flowmedic-api
+# In another terminal:
+curl -s localhost:8000/api/health
+curl -s localhost:8000/api/scenarios
+curl -s -X POST localhost:8000/api/incidents \
+  -H 'content-type: application/json' -d '{"scenario_id":"SC-001"}'
+# Use incident_id from the response:
+curl -N localhost:8000/api/incidents/INCIDENT_ID/events
+```
+
+The server binds to `127.0.0.1:8000`. `API_HOST`, `API_PORT`,
+`API_CORS_ORIGINS` (JSON array) and `API_STATIC_DIR` are settings in `.env`.
+Development CORS permits `http://localhost:5173`. When `app/web/dist` exists at
+startup, its files and index are served at `/`. Interactive endpoint documentation
+is at `/docs`.
+
+Creating an incident checkpoints its initial state without making a model call.
+Subscribe to `GET /api/incidents/{id}/events` to run it until the next interrupt
+or completion. Events include node start/finish, tool results, triage/plan updates,
+structured interrupts, errors and done. `done` means this stream ended; inspect
+`pending_interrupt` to distinguish a pause from completion. One stream per incident
+is allowed. Reopening a paused incident replays its question without running it.
+After `POST /api/incidents/{id}/resume`, subscribe to `/events` again. The resume
+is queued in this process until subscribed; after a server restart, resubmit any
+unconsumed resume. Checkpointed incident state and questions survive restarts.
+Disconnecting cancels the active stream; inspect the latest checkpoint before
+reconnecting. Use one server worker for the local API.
+
+Resume bodies use `{ "kind": ..., "payload": ... }`:
+
+- `answer`: requested context slots, such as `{"version":"10.15"}`, or
+  `{"evidence":"timestamped diagnostic text"}` for evidence questions.
+- `approve_logs`: `{"approved":true,"roots":["the pending folder"],"window":
+  {"start_time":null,"end_time":null}}`. Roots cannot broaden the incident's
+  allowlist. `false` declines access.
+- `step_result`: `{"step":1,"status":"done","output":"pasted output",
+  "confirmed":true}`. Status also accepts `skipped` or `failed`. Mutations still
+  require explicit human execution confirmation; the API never executes commands.
+- `approve_save`: `true` or `false` (or `{"approved":true}`). This retains the
+  existing human-approved knowledge save and indexing behavior.
+- `retriage`: `{"output":"new diagnostic evidence"}` at a pending planner step,
+  using the existing handoff and two-round limit.
+
+`GET /api/incidents` lists checkpointed threads. `GET /api/incidents/{id}` exposes
+context, triage, the plan with step statuses, flags, evidence and pending question.
+Topology is at `/api/environments/{env}/topology?incident_id=...`; knowledge is at
+`/api/knowledge/INC-003`. Topology `checked_ok` means a completed check whose
+recorded decision continued; it is not an independent assertion of system health.
+
+Upload one UTF-8 text export per multipart `file` field with
+`POST /api/incidents/{id}/logs`, before log approval. Repeat to add files. Files
+over 50 MiB, non-text MIME types, invalid UTF-8, NUL bytes and unsafe filenames
+are rejected. Files go under `runs/uploads/{id}/` (relative to `RUNS_DIR`), replacing
+the scenario folder as that incident's selectable read-only log root. Existing
+filenames are not overwritten. Multipart spill files also stay under `RUNS_DIR`.
+Every response string is masked; quarantined lines appear only in `flags`.
+Raw exports remain local and are read only after approval.
+
+```sh
+uv run ruff check .
+uv run pytest
+```

@@ -282,3 +282,64 @@ Known limitations:
 - Custom KNOWLEDGE_DIR affects saves; retrieval loaders still read the default knowledge directory.
 - Provenance validation checks references and component IDs, not independent semantic entailment of every proposed action.
 - Windows runtime behavior has not been exercised in this environment.
+
+## Step 5a: local HTTP API for the React UI
+
+Added the FastAPI adapter in `flowmedic/api/app.py` and the `flowmedic-api`
+console script, defaulting to `127.0.0.1:8000`. Added FastAPI, uvicorn,
+sse-starlette, multipart support and the httpx test dependency. All API settings
+live in `flowmedic/config.py`; development CORS permits localhost:5173, and a
+built `app/web/dist` is served at `/` when present at startup.
+
+Implemented health, scenario catalog, incident creation/list/snapshot, UTF-8 text
+uploads, SSE execution/resume, topology status and knowledge-document endpoints.
+Creation persists an initial checkpoint without a model call. Scenario creation
+uses its problem and selected environment with its logs as the incident root.
+Uploads switch that incident to a repository-local `runs/uploads/<id>/` read-only
+root and still require log approval. Uploads reject files over 50 MiB, non-text
+MIME types, NUL bytes, invalid UTF-8, unsafe names and overwrites. Multipart spool
+files also stay in the configured repository-local runs folder.
+
+SSE uses `graph.astream` with updates/custom modes and subgraph streaming.
+Existing node progress events supply starts, updates supply finishes and summaries,
+and small custom events expose tool successes/errors and save approval. Graph
+behavior and model prompts are unchanged. Resume validates the pending question,
+step identity and approval root. Explicit re-triage uses the existing planner
+handoff and retains its two-round bound. Snapshots merge interrupted subgraph
+state. Every response string is redacted; quarantined lines appear only in flags.
+Validation errors omit rejected inputs so diagnostic secrets cannot be echoed.
+
+Run from the repository root:
+
+```sh
+uv sync
+uv run ruff check .
+uv run pytest
+uv run flowmedic-api
+# Separate terminal:
+curl -s localhost:8000/api/health
+curl -s localhost:8000/api/scenarios | head -c 400
+curl -s -X POST localhost:8000/api/incidents -H 'content-type: application/json' -d '{"scenario_id":"SC-001"}'
+```
+
+README documents SSE pauses, resume bodies, uploads and configuration. Offline
+HTTP tests use fake graphs plus the real nested parent with fake model-dependent
+nodes: scenario creation, node/tool/interrupt events, clarification resume, log
+approval, masking/quarantine, step statuses, topology states, save rejection,
+bounded explicit re-triage, 60 MiB upload rejection, SQLite restart persistence,
+CORS and built-static serving. Verification: ruff passed; pytest reported
+124 passed and 4 live tests deselected. No real model/backend calls were needed.
+The requested local curl checks returned health `{"status":"ok"}`, the first
+400 bytes of the scenario catalog, and incident creation
+`{"incident_id":"eb7e0ccb0aeb49ecb6aceb37231343e0"}`. The dev server started once
+and was stopped after checking it; the created incident remains checkpointed.
+
+Runtime limits: use one server worker and one event stream per incident. A
+submitted resume is queued in memory until `/events` consumes it; resubmit an
+unconsumed resume after restart. Durable graph checkpoints and pending questions
+survive restarts. A disconnected event stream cancels execution; inspect its
+latest checkpoint before reconnecting. Topology `checked_ok` reflects a completed
+engineer check followed by a continuing decision, not independent health proof.
+Windows runtime remains untested.
+
+Next: Step 5b React UI consuming the HTTP endpoints and structured human approvals.

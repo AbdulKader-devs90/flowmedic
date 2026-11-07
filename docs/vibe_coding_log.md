@@ -41,3 +41,8 @@ How this project is built: Claude (planning, content, reviews, docs) writes one 
 - Iterations Codex hit and fixed: SQLite "database is locked" when demos ran in parallel; a LangGraph InvalidUpdateError (two nodes writing case_id in one step); a planner loop that kept re-inserting the same skipped step; simulator outputs landing on the wrong steps because the fixture keywords were too loose (Claude tightened them; the simulator now picks the best match and uses each entry once).
 - Decision: stopped Codex once all three demos had passed, instead of letting it keep polishing. Known limitations are listed in `docs/progress.md`; they are good input for the Week 4 failure analysis (for example, the interpret step sometimes repeats stale reasoning).
 - Follow-up (Claude): added backend-fix outputs to the Kong simulator so KONG-SC-01 can resolve instead of escalating.
+
+## Step 5a: FastAPI layer (7 Nov 2026)
+- Prompt: `docs/prompts/step-05a-api.md` (first prompt run with the AGENTS.md working budget).
+- Result in 7.5 minutes: health, scenarios, incidents (create, list, snapshot), log upload with size and type checks, server-sent events for node progress and interrupts, a resume endpoint for answers, log approval, step results and save approval, topology status per incident, knowledge doc fetch, CORS for the dev UI and static serving of the built UI. 124 tests passed.
+- Note from Codex: run the API with one worker; a resume queued before a restart must be resent if /events did not consume it.

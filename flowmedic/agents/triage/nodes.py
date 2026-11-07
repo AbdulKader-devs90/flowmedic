@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
+from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 
@@ -135,14 +136,40 @@ class TriageNodes:
         **kwargs: Any,
     ) -> Any:
         """Retry errors once, retaining a gap if both attempts fail."""
+        try:
+            writer = get_stream_writer()
+        except RuntimeError:
+
+            def writer(event: Any) -> None:
+                pass
+
+        name = getattr(function, "__name__", type(function).__name__)
+        target = str(args[0]) if args and isinstance(args[0], (str, Path)) else "local"
         for attempt in range(2):
             try:
                 with tool_context(state["case_id"]):
                     value = await asyncio.to_thread(function, *args, **kwargs)
-                    return await value if hasattr(value, "__await__") else value
+                    result = await value if hasattr(value, "__await__") else value
+                    writer(
+                        {
+                            "event": "tool_called",
+                            "tool": name,
+                            "target": target,
+                            "status": "ok",
+                        }
+                    )
+                    return result
             except StopTriage:
                 raise
             except Exception as exc:
+                writer(
+                    {
+                        "event": "tool_called",
+                        "tool": name,
+                        "target": target,
+                        "status": "error",
+                    }
+                )
                 if attempt:
                     name = getattr(function, "__name__", type(function).__name__)
                     note(

@@ -4,6 +4,8 @@ Paste below the line into a NEW Codex chat (GPT-6.1 Sol, Medium, Full access) af
 
 ---
 
+**Budget (from AGENTS.md):** 45 minutes of work at most. Offline tests with fake models first; live checks at most 2 attempts each, one at a time. If a check still fails after 2 fixes, stop and report. Stay in scope.
+
 Read AGENTS.md, docs/progress.md, and the parent graph from Step 4 (flowmedic/graph/main_graph.py). Build an HTTP API the React UI will use. Do not change agent behavior.
 
 1. flowmedic/api/app.py (FastAPI) + a console script "flowmedic-api" (uvicorn, 127.0.0.1:8000). Add fastapi, uvicorn and sse-starlette (or equivalent) dependencies.

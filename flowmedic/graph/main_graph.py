@@ -56,7 +56,14 @@ def build_graph(
             return state
 
     graph.add_node("close", close)
-    graph.add_node("approve_save", planner_nodes.approve_save)
+
+    async def approve_save(state: IncidentState) -> IncidentState:
+        get_stream_writer()(
+            {"node": "approve_save", "summary": "Request save approval"}
+        )
+        return await planner_nodes.approve_save(state)
+
+    graph.add_node("approve_save", approve_save)
     graph.add_edge(START, "triage")
     graph.add_edge("triage", "planner")
     graph.add_conditional_edges(

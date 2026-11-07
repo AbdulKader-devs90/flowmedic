@@ -11,6 +11,8 @@ Then paste below the line into a NEW Codex chat (GPT-6.1 Sol, Medium, Full acces
 
 ---
 
+**Budget (from AGENTS.md):** 45 minutes of work at most. Offline tests with fake models first; live checks at most 2 attempts each, one at a time. If a check still fails after 2 fixes, stop and report. Stay in scope.
+
 Use $impeccable for this task. Read AGENTS.md, PRODUCT.md, DESIGN.md (the design source of truth: tokens, fonts, layout, components, motion, anti-patterns) and docs/progress.md. The API from Step 5a is running at http://localhost:8000 (see flowmedic/api/app.py for the exact contracts).
 
 Build the FlowMedic war-room UI in app/web/.

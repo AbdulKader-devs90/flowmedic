@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     agent_version: str = "0.1.0"
     sqlite_busy_timeout_ms: int = Field(default=30000, ge=1000, le=60000)
     default_environment: str = "sample-prod"
+    api_host: str = "127.0.0.1"
+    api_port: int = Field(default=8000, ge=1, le=65535)
+    api_cors_origins: list[str] = ["http://localhost:5173"]
+    api_static_dir: Path = REPO_ROOT / "app/web/dist"
+    api_upload_max_bytes: int = Field(
+        default=50 * 1024 * 1024, ge=1, le=50 * 1024 * 1024
+    )
     runs_dir: Path = REPO_ROOT / "runs"
     knowledge_dir: Path = REPO_ROOT / "knowledge"
     log_roots: list[Path] = Field(default_factory=list)
