@@ -18,3 +18,8 @@ runs/
 # Impeccable engine binary (17 MB, per-OS; reinstall with: npx impeccable install --providers=codex)
 .agents/skills/impeccable/scripts/bin/
 .impeccable/config.local.json
+
+# Web build and dependencies
+app/web/node_modules/
+app/web/dist/
+app/web/*.tsbuildinfo

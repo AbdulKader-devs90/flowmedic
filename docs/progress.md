@@ -362,3 +362,80 @@ is preserved. No live-mode configuration was added because the web UI
 is not implemented yet.
 
 Next: Step 5b war-room UI, following PRODUCT.md and DESIGN.md.
+
+
+## Step 5b: React incident war room
+
+Implemented `app/web/` with Vite, strict TypeScript, React, Tailwind CSS, shadcn
+Radix dialog/command/button primitives, Framer Motion, lucide-react and React
+Query. Animated Beam, Border Beam and Number Ticker were installed through the
+shadcn Magic UI registry, then adapted to the committed tokens and finite motion.
+Geist Sans and JetBrains Mono are bundled locally. DESIGN.md remains unchanged;
+its colors, type scale, spacing base, widths, radii and timing tokens are mapped
+to CSS variables and the Tailwind theme.
+
+Added the incident rail, timeline, new incident/scenario dialog, UTF-8 file
+attachments, Command-K/Control-K palette, typed HTTP/SSE handling, structured
+clarification/log/step/save cards, triage assessment, provenance badges, confidence
+bars, knowledge/log evidence drawers, layered topology, plan stepper, clipboard
+feedback and explicit execution confirmation for change steps. Shared triage
+layout and a finite handoff beam connect diagnosis to planning. Reduced-motion
+preferences suppress topology/beam effects; fades remain. Topology refreshes from
+checkpoints after stream completion. Below 1024px, details move into a Radix drawer.
+
+Updated README with installation, API/UI development commands, SC-001 walkthrough,
+static build and validation instructions. Added ignores for npm dependencies,
+frontend output and TypeScript build metadata.
+
+Completed checks:
+
+- `npm --prefix app/web run build`: PASS (strict TypeScript and Vite output to
+  `app/web/dist`). Non-fatal advisory: main JS chunk is about 514 kB before gzip.
+- `npm --prefix app/web run lint`: PASS, no findings.
+- `npx impeccable detect app/web/src`: one warning, `overused-font` for Geist;
+  exit 2. Retained because the task and DESIGN.md explicitly mandate Geist.
+  A JSON scan confirmed warning severity and no high-severity findings. Source
+  scanning is regex-only and does not verify rendered contrast.
+- `npm --prefix app/web test`: 3 offline browser checks PASS against a fake
+  HTTP/SSE API using local Chrome, including the SC-001-shaped approval workflow,
+  exact resume payloads, masked/quarantined evidence, knowledge, keyboard focus,
+  960px details drawer, reduced motion and API failure recovery.
+- `uv run pytest tests/test_api.py`: 7 PASS with fake graphs/models.
+- `npm --prefix app/web audit --omit=dev`: zero production vulnerabilities.
+  npm reports seven moderate findings in the development lint dependency tree.
+
+Visually inspected desktop empty/log-approval/plan states and the laptop drawer.
+Local screenshots and Playwright failure traces are under ignored `.cache/`.
+The first build exposed the Geist package export restriction; the first browser
+check exposed an ambiguous test locator. Both passed after one correction. The
+laptop render exposed inherited dialog positioning; corrected and rechecked.
+No real Nebius, Tavily or Pinecone calls were made. The existing API was not
+listening on localhost:8000 at verification time (connection refused), so the
+Vite proxy could not return health and no live SC-001 session was attempted.
+The Vite server was started once for offline checks and stopped before finishing.
+
+Run from the repository root in two terminals:
+
+```sh
+uv run flowmedic-api
+npm --prefix app/web run dev
+```
+
+Open http://localhost:5173, load SC-001, answer requested context, approve logs,
+and report manually executed checks. The API still owns all model/tool tracing,
+validation and explicit knowledge-save approval. No backend execution behavior
+or prompts changed.
+
+Time box reached: implementation and offline checks are complete; live browser
+integration against the configured providers remains unverified. Existing API
+limitations remain: one worker/stream per incident; earlier activity rows are
+not persisted; evidence consists of checkpointed excerpts. The UI infers its
+selectable environments from scenarios because no environment-list API exists.
+Knowledge document bodies render safely as text with heading recognition, not
+full Markdown formatting. Windows runtime and rendered automated contrast audit
+remain unverified. No further implementation or validation was pursued past the
+budget.
+
+Next: manually walk through SC-001 with the running API and review actual model
+outputs, reconnect behavior and evidence references before considering Step 5b
+fully validated in the live environment.

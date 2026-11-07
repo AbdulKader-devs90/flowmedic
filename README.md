@@ -1,6 +1,6 @@
 # FlowMedic
 
-**Diagnose the break. Guide the fix.** FlowMedic is a read-only, two-agent triage assistant for integration-platform incidents, starting with webMethods and a light Kong profile. The Triage Agent classifies incidents and finds solved cases, runbooks or vendor documentation; the Planner Agent guides the engineer through the fix. The engineer runs every command. Steps 1–4 provide triage, topology-aware planning, an engineer step loop, persistent checkpoints, environment memory and approved incident saves. The UI is next.
+**Diagnose the break. Guide the fix.** FlowMedic is a read-only, two-agent triage assistant for integration-platform incidents, starting with webMethods and a light Kong profile. The Triage Agent classifies incidents and finds solved cases, runbooks or vendor documentation; the Planner Agent guides the engineer through the fix. The engineer runs every command. Steps 1–4 provide triage, topology-aware planning, an engineer step loop, persistent checkpoints, environment memory and approved incident saves. Step 5b adds the React incident war room.
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and Git. Run commands from the repository root; uv selects Python 3.11.
 
@@ -46,7 +46,7 @@ Live tests call a real API and may incur charges; they are excluded by default. 
 Two-laptop rule: **pull before work, commit and push after**. On each laptop, run `git pull` before making changes and `git add`, `git commit`, and `git push` after finishing. Keep provider keys in each laptop's local `.env`.
 
 Step 2 adds validated knowledge/scenario loaders, state models, topology checks,
-secret masking, diagnostic parsers, and hybrid retrieval. Steps 3–4 add triage and planner graphs; the UI is next.
+secret masking, diagnostic parsers, and hybrid retrieval. Steps 3–4 add triage and planner graphs; Step 5b adds the React incident war room.
 Seed content is read without modification.
 
 Configure `VECTOR_BACKEND=pinecone` and `PINECONE_API_KEY` in `.env` to use the
@@ -283,3 +283,74 @@ Raw exports remain local and are read only after approval.
 uv run ruff check .
 uv run pytest
 ```
+
+
+### Incident war room (Step 5b)
+
+Requires Node.js 22.12+ (or 20.19+) and npm. Install the frontend once:
+
+```sh
+npm --prefix app/web ci
+```
+
+Run these in two terminals from the repository root:
+
+```sh
+uv run flowmedic-api
+```
+
+```sh
+npm --prefix app/web run dev
+```
+
+Open http://localhost:5173 and select **SC-001** from the demo list (or use
+**New incident → Load demo scenario**). Answer the requested environment details,
+approve the displayed log folder/window, then run each proposed check yourself
+and paste its output into the active plan step. Change steps require execution
+confirmation. Save and Discard explicitly accept or reject knowledge persistence.
+These actions call configured models/retrieval services and may incur charges.
+The Command menu opens with Command-K on macOS or Control-K on Windows; enter an
+incident/runbook ID such as INC-003 to open a knowledge document.
+
+The Vite dev server proxies `/api` to `http://localhost:8000`. To serve the built
+UI directly from FastAPI, build first, then start/restart the API:
+
+```sh
+npm --prefix app/web run build
+uv run flowmedic-api
+```
+
+The build is written to `app/web/dist`. Frontend checks:
+
+```sh
+npm --prefix app/web run build
+npm --prefix app/web run lint
+npx impeccable detect app/web/src
+```
+
+The detector reports a warning for Geist's popularity; Geist is explicitly
+required by DESIGN.md and is retained. The source scan does not inspect rendered
+contrast. Desktop and laptop layouts were visually checked. The build currently
+has a non-fatal bundle-size advisory for its main JavaScript chunk.
+
+Offline browser acceptance checks use a mocked HTTP/SSE API, never real models.
+With the Vite dev server already running and Google Chrome installed:
+
+```sh
+npm --prefix app/web test
+```
+
+They cover clarification, log approval, change confirmation, plan results,
+knowledge/log drawers, save rejection, keyboard commands, reduced motion, laptop
+layout and API failures. Python API contract tests remain available with
+`uv run pytest tests/test_api.py` and use fake model-dependent nodes.
+
+An event stream runs only for the selected incident after creation or explicit
+Continue/resume. Stream disconnects refresh the checkpoint and require explicit
+retry; no automatic reconnect can consume another model run. Earlier activity
+rows are held in browser memory because the API exposes checkpoint snapshots,
+not an event history. Switching incidents disconnects the active stream. The
+checkpoint can then be reopened with Continue. Evidence viewers show captured,
+masked excerpts with their original line references, rather than entire files.
+The environment picker uses the environments in the scenario catalog because the
+API has no separate environment catalog endpoint.
