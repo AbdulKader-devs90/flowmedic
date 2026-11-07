@@ -1,6 +1,6 @@
 # Repository rules
 
-- Safety: no code may run commands on, or write to, any remote server, or any log or file outside this repo. Agent tools are read-only. The only write the agent makes is to its own knowledge repo, after human approval.
+- Safety: no code may run commands on, or write to, any remote server, or any log or file outside this repo. FlowMedic's agent tools (log reader, topology, knowledge search) are read-only. This rule is about the product, not about you: you may edit files in this repo, install dependencies and run local checks. The only write the agent makes is to its own knowledge repo, after human approval.
 - Every LLM output that code depends on uses a Pydantic model via `with_structured_output`.
 - All LLM and tool calls are traced to LangSmith. Each run carries metadata: `case_id` (if any), `prompt_version`, `agent_version`, `model`.
 - Prompts live in `prompts.py` files as versioned constants, for example `TRIAGE_SYSTEM_V1`.

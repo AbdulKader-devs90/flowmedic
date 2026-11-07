@@ -3,6 +3,7 @@
 import asyncio
 import codecs
 import json
+import logging
 import re
 import tempfile
 from collections.abc import AsyncIterator
@@ -38,6 +39,8 @@ from flowmedic.knowledge.loaders import (
 from flowmedic.tools.environment_memory import local_path
 from flowmedic.tools.redact import redact
 from flowmedic.tracing import case_trace, run_config, tool_context
+
+logger = logging.getLogger(__name__)
 
 
 class CreateIncident(BaseModel):
@@ -265,7 +268,11 @@ def create_app(*, graph: Any = None) -> FastAPI:
             incident_id = cfg["thread_id"]
             if any(item["id"] == incident_id for item in result):
                 continue
-            current = await snapshot(incident_id)
+            try:
+                current = await snapshot(incident_id)
+            except Exception as exc:  # noqa: BLE001 - one bad checkpoint must not hide the rest
+                logger.warning("Skipping unreadable incident %s: %s", incident_id, exc)
+                continue
             values = merged(current)
             context = jsonable_encoder(values.get("context", {}))
             triage = jsonable_encoder(values.get("result", {}))
