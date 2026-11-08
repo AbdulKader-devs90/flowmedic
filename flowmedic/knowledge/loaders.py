@@ -33,6 +33,7 @@ class KnowledgeDoc(BaseModel):
     environment: str | None = None
     verified: bool = False
     body: str
+    source_file: str = Field(default="", exclude=True)
 
     def embedding_text(self) -> str:
         """Use diagnosis sections, excluding resolution instructions."""
@@ -111,6 +112,7 @@ def load_documents() -> list[KnowledgeDoc]:
                 if not match:
                     raise ValueError("missing YAML front matter")
                 doc = KnowledgeDoc(**yaml.safe_load(match[1]), body=match[2])
+                doc.source_file = path.relative_to(REPO_ROOT).as_posix()
                 unknown = set(doc.root_causes) - causes.keys()
                 if unknown:
                     raise ValueError(f"unknown root_causes IDs: {sorted(unknown)}")

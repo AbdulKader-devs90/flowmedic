@@ -1,3 +1,4 @@
+import { displayPath } from '@/lib/display'
 import { useState } from 'react'
 import { Check, ShieldCheck, FileText, MessageSquare, FolderOpen } from 'lucide-react'
 import { StepDetails } from './step-details'
@@ -63,10 +64,11 @@ export function StepResultForm({ step, busy, submit }: {
     <p className="hint">Done = it worked as expected. Failed = it did not. Skipped = not applicable here.</p>
   </div>
 }
-export function ActionCard({ question, busy, submit, total = 1 }: {
+export function ActionCard({ question, busy, submit, total = 1, displayRoot }: {
   question: Question
   busy: boolean
   submit: (reply: Resume) => void
+  displayRoot?: string
   total?: number
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -89,11 +91,13 @@ export function ActionCard({ question, busy, submit, total = 1 }: {
   if ('type' in question && question.type === 'approve_save') return <section className="action-card">
     <div className="flex-row mb-3">
       <ShieldCheck />
-      <h2>Your turn: save this incident to the knowledge base?</h2>
+      <h2>{question.outcome === 'escalate' && !(question.record.steps_worked as unknown[] | undefined)?.length ? 'Save an escalation note?' : 'Your turn: save this incident to the knowledge base?'}</h2>
     </div>
     <p className="muted">Review the record before adding it to the knowledge repository.</p>
     <p className="mt-3">Outcome: {humanize(question.outcome)}</p>
-    <pre className="command max-h-80 overflow-auto">{JSON.stringify(question.record, null, 2)}</pre>
+    {question.outcome === 'escalate' && !(question.record.steps_worked as unknown[] | undefined)?.length && <p className="hint mt-3">Nothing was fixed in this session. Saving keeps a record for the next engineer; it is not a known fix.</p>}
+    <RecordSummary record={question.record} />
+    <details className="mt-4"><summary className="hint cursor-pointer">Show raw record</summary><pre className="command max-h-80 overflow-auto">{JSON.stringify(question.record, null, 2)}</pre></details>
     <div className="buttons">
       <Button disabled={busy} onClick={() => submit({ kind: 'approve_save', payload: true })}>Save record</Button>
       <Button
@@ -107,8 +111,8 @@ export function ActionCard({ question, busy, submit, total = 1 }: {
       <FolderOpen />
       <h2>Your turn: approve read-only log access</h2>
     </div>
-    <p className="muted text-sm">{question.why}</p>
-    <p className="command">{question.folder}</p>
+    <p className="muted text-sm">{question.why.replace('(null means the full export)', 'Leave times blank to read the full export.')}</p>
+    <p className="command">{displayPath(question.folder, displayRoot)}</p>
     <div className="grid-two">
       <label className="label">Start time<input
         className="field mt-2"
@@ -123,13 +127,13 @@ export function ActionCard({ question, busy, submit, total = 1 }: {
         placeholder={question.end_time || 'Full export'} />
       </label>
     </div>
-    <p className="hint">Read access to this folder only. Blank times use the displayed export window.</p>
+    <p className="hint">Read access to this folder only. Leave times blank to read the full export.</p>
     <div className="buttons">
       <Button disabled={busy} onClick={() => submit({
         kind: 'approve_logs', payload: {
           approved: true,
           roots: [question.folder],
-          window: { start_time: start || question.start_time, end_time: end || question.end_time }
+          window: { start_time: start || null, end_time: end || null }
         }
       })}>Approve access</Button>
       <Button
@@ -175,4 +179,17 @@ export function ActionCard({ question, busy, submit, total = 1 }: {
       </div>
     </form>
   </section>
+}
+
+function RecordSummary({ record }: { record: Record<string, unknown> }) {
+  const list = (key: string) => Array.isArray(record[key]) ? record[key] as unknown[] : []
+  const worked = list('steps_worked') as Record<string, string>[]
+  return <div className="record-summary space-y-3 mt-3">
+    <p><span className="muted">Platform / version / environment · </span>{[record.platform, record.version || 'Version unspecified', record.environment].filter(Boolean).map(String).join(' · ')}</p>
+    <p><span className="muted">Root causes · </span>{list('root_causes').map(value => humanize(String(value))).join(', ') || 'None confirmed'}</p>
+    <p><span className="muted">Signatures · </span>{list('signatures').map(String).join(', ') || 'None recorded'}</p>
+    <h3>Steps that worked</h3>
+    {!worked.length && <p className="hint">No successful steps recorded.</p>}
+    {worked.map((step, i) => <div key={i}><p>{step.action || step.title || 'Engineer check'}</p><p className="hint whitespace-pre-wrap">{step.output || step.result || 'No result recorded'}</p></div>)}
+  </div>
 }

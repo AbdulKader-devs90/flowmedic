@@ -68,6 +68,8 @@ export function deriveStage(snapshot?: Snapshot, liveNode?: string | null, activ
   else if (question?.type === 'log_access' || liveNode === 'request_log_access') stage = 'Logs'
   else if (question?.type === 'context') stage = 'Report'
   else if (snapshot?.evidence.length || activity.some(row => ['evidence', 'grep', 'classify', 'synthesize', 'kb_search'].includes(row.node)) || ['evidence', 'grep', 'classify', 'synthesize', 'kb_search'].includes(liveNode || '') || question?.type === 'evidence') stage = 'Diagnose'
+  const reAssessing = !!snapshot?.triage_result && ['classify', 'synthesize', 'kb_search', 'retrieve', 'research', 'intake', 'load_context', 'evidence'].includes(liveNode || '')
+  if (reAssessing && !question) stage = 'Diagnose'
   const agent = snapshot?.stage === 'closed' ? null : ['Fix', 'Close'].includes(stage) ? 'Planner agent' : 'Triage agent'
   const progress = planProgress(snapshot)
   const waiting: Record<string, string> = {
@@ -79,7 +81,8 @@ export function deriveStage(snapshot?: Snapshot, liveNode?: string | null, activ
   }
 
   const status = question ? `Waiting for you: ${waiting[question.type] || 'review the request'}`
-    : !agent ? 'Incident closed'
+    : reAssessing ? 'Triage agent is re-assessing root causes'
+      : !agent ? 'Incident closed'
       : `${agent} is ${actions[liveNode || ''] || (stage === 'Fix' ? 'building the resolution plan' : stage === 'Close' ? 'preparing the incident record' : stage === 'Diagnose' ? 'assessing root causes' : 'reading the incident report')}`
   return {
     stage,

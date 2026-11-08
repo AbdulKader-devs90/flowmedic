@@ -71,6 +71,13 @@ Read DESIGN.md ("Setup page", "Knowledge page", Principles 6–7) first.
    - (g) After a re-plan, prefix story rows with the plan version ("Plan 2 · Step 1 done: …") so step numbers do not look duplicated.
    - (h) The diagnosis notes repeat the same sentence ("No log folder supplied; request an approved diagnostic export." twice). Remove exact duplicates when displaying them.
 
+   - (i) There is no way back to the home screen after opening an incident. Fix navigation so the user is never trapped:
+     - Clicking "War room" in the left rail, or the FlowMedic logo, returns to the war-room home (no incident selected, scenarios and "How FlowMedic works" visible), even when an incident is open.
+     - Add a small "← All incidents" link above the incident title.
+     - The "Incident workflow complete" card gets two buttons: "Start a new incident" and "Back to war room".
+     - Esc closes dialogs only, never the incident.
+     - The selected incident is part of the URL (for example `?incident=<id>`), so browser Back/Forward work and a refresh keeps the view.
+
 8. **First visit.** Open the "How FlowMedic works" dialog automatically the first time the app loads. Remember this in localStorage, wrapped in try/catch; the "?" button always reopens it.
 
 Checks, run once at the end:

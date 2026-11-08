@@ -1,3 +1,4 @@
+import { confidenceHint, displayPath, trustHints, uniqueNotes } from '@/lib/display'
 import { useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'framer-motion'
@@ -10,25 +11,27 @@ import { Button } from './ui/button'
 import { NumberTicker } from './ui/number-ticker'
 import { AnimatedBeam } from './ui/animated-beam'
 export function SeverityPill({ severity }: { severity: string | null }) {
-  return <span className={`badge severity-${severity || 'P4'}`}>
-    <span className="size-1 rounded-full bg-current" />{severity || 'Unrated'}</span>
+  return <span title={severity ? ({ P1: 'Critical outage; immediate attention required.', P2: 'Major impact; urgent investigation required.', P3: 'Limited impact; investigate with normal priority.', P4: 'Low impact; address during planned work.' }[severity]) : 'The Triage agent is assessing severity.'} className={`badge severity-${severity || 'P4'}`}>
+    <span className="size-1 rounded-full bg-current" />{severity || 'Triaging'}</span>
 }
 export function CategoryTag({ category }: { category: string }) {
   return <span className="badge">{humanize(category)}</span>
 }
 export function SourceBadge({ step, open }: { step: PlanStep; open: (target: EvidenceTarget) => void }) {
-  if (step.source_ref && step.source === 'verified') return <button className={`badge ${step.source}`} onClick={() => open({ doc: step.source_ref!.match(/(?:INC|RB)-[\w-]+/)?.[0] || step.source_ref! })}>
+  if (step.source_ref && step.source === 'verified') return <button title={trustHints.verified} className={`badge ${step.source}`} onClick={() => open({ doc: step.source_ref!.match(/(?:INC|RB)-[\w-]+/)?.[0] || step.source_ref! })}>
     <ShieldCheck />Verified · {step.source_ref}<ArrowUpRight />
   </button>
   if (step.source === 'cited' && step.source_ref && /^https?:\/\//.test(step.source_ref)) return <a
+    title={trustHints.cited}
     className="badge cited"
     href={step.source_ref}
     target="_blank"
     rel="noreferrer">Cited <ExternalLink />
   </a>
-  return <span className={`badge ${step.source}`}>{humanize(step.source)}</span>
+  return <span title={trustHints[step.source]} className={`badge ${step.source}`}>{humanize(step.source)}</span>
 }
-export function TriageCard({ result, compact, open }: {
+export function TriageCard({ result, compact, open, displayRoot }: {
+  displayRoot?: string
   result: TriageResult
   compact: boolean
   open: (target: EvidenceTarget) => void
@@ -58,7 +61,7 @@ export function TriageCard({ result, compact, open }: {
     </div>
     <h2>{compact ? 'Diagnosis handed to planner' : 'Triage assessment'}</h2>{!compact && <>
       <div className="flex-row justify-between text-sm">
-        <span className="muted">Assessment confidence</span>
+        <span className="muted" title={confidenceHint}>Assessment confidence</span>
         <span>{reduced ? Math.round(result.confidence * 100) : <NumberTicker value={Math.round(result.confidence * 100)} />
         }%</span>
       </div>{result.root_causes.map(cause => <div className="cause" key={cause.id}>
@@ -67,6 +70,7 @@ export function TriageCard({ result, compact, open }: {
           <span className="muted">{Math.round(cause.confidence * 100)}%</span>
         </div>
         <div
+          title={confidenceHint}
           className="confidence"
           role="meter"
           aria-label={`${humanize(cause.id)} confidence`}
@@ -84,7 +88,7 @@ export function TriageCard({ result, compact, open }: {
             key={ref}
             variant="ghost"
             size="sm"
-            onClick={() => open(match ? { file: match[1], line: Number(match[2]) } : { file: ref })}>{ref}<ArrowUpRight />
+            onClick={() => open(match ? { file: match[1], line: Number(match[2]) } : { file: ref })}>{displayPath(ref, displayRoot)}<ArrowUpRight />
           </Button>
         })}</div>
       </div>)}{result.kb_matches[0] && <div className="border-t border-border pt-4">
@@ -100,22 +104,23 @@ export function TriageCard({ result, compact, open }: {
         <p className="hint mb-2">Related components · check order</p>
         <div className="flex-row">{result.related_components.map(id => <code className="text-xs muted" key={id}>{id}</code>)}</div>
       </div>
-      }{result.notes && <p className="hint mt-4">{result.notes}</p>
+      }{result.notes && <p className="hint mt-4">{uniqueNotes(result.notes)}</p>
       }</>
     }</motion.section>
 
 }
 function layer(node: TopologyNode) {
+  if (node.layer !== undefined) return node.layer
   if (/consumer|client/.test(node.type)) return 0
   if (/gateway|load_balancer/.test(node.type)) return 1
-  if (/integration_server|kong|proxy/.test(node.type)) return 2
+  if (/integration_server|kong_data_plane|proxy/.test(node.type)) return 2
   return 3
 }
 export function TopologyMap({ snapshot }: { snapshot: Snapshot }) {
   const env = snapshot.context.environment
   const query = useQuery({
     queryKey: ['topology', env, snapshot.id, snapshot.pending_interrupt, snapshot.plan],
-    queryFn: () => api.topology(env!, snapshot.id),
+    queryFn: () => api.topology(env!, snapshot.id || undefined),
     enabled: !!env
   })
 
@@ -188,7 +193,7 @@ export function TopologyMap({ snapshot }: { snapshot: Snapshot }) {
               x={p.x + p.w / 2}
               y={p.y + 20}
               textAnchor="middle"
-              style={{ fontSize: node.id.length > 14 ? 9 : 11 }}>{node.id}</text>
+              style={{ fontSize: 11 }}>{node.id}</text>
           </motion.g>
         })}</svg>{a && b && !reduced && <>
           <div

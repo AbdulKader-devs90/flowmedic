@@ -426,3 +426,37 @@ def test_cors_and_static_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         )
         assert "FlowMedic" in client.get("/").text
         assert client.get("/api/health").json() == {"status": "ok"}
+
+
+def test_read_only_configuration_catalogs(client: TestClient) -> None:
+    platforms = client.get("/api/platforms").json()
+    assert {p["id"] for p in platforms} == {
+        "kong",
+        "webmethods",
+        "linux",
+        "windows",
+        "oracle",
+    }
+    kong = next(p for p in platforms if p["id"] == "kong")
+    assert kong["source_file"] == "platforms/kong.yaml"
+    assert kong["clarify_slots"]["required"] == ["version", "deployment_mode"]
+    assert kong["components"][0]["error_pattern_count"] == 4
+    assert len(kong["components"][0]["error_patterns"]) == 3
+    assert next(p for p in platforms if p["id"] == "linux")["versions"] == []
+    environments = client.get("/api/environments").json()
+    env = next(e for e in environments if e["id"] == "kong-sample")
+    assert env["platform"] == "kong"
+    assert env["node_count"] == 6 and env["edge_count"] == 5
+    assert env["source_file"] == "environments/kong-sample/topology.yaml"
+    assert isinstance(env["has_architecture"], bool)
+    docs = client.get("/api/knowledge").json()
+    assert {"incident", "runbook"} == {d["type"] for d in docs}
+    assert all(d["source_file"].startswith("knowledge/") for d in docs)
+    assert all(isinstance(d["verified"], bool) for d in docs)
+    by_id = client.get("/api/knowledge", params={"q": "inc-003"}).json()
+    assert any(d["id"] == "INC-003" for d in by_id)
+    title = by_id[0]["title"]
+    assert client.get("/api/knowledge", params={"q": title.swapcase()}).json()
+    assert client.get("/api/knowledge?q=not-a-document").json() == []
+    assert client.post("/api/platforms", json={}).status_code == 405
+    assert client.get("/api/environments/missing/architecture").status_code == 404

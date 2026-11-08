@@ -20,6 +20,7 @@ export function DiagnosisTab({ snapshot, open }: TabProps) {
   return snapshot?.triage_result
     ? <TriageCard
       result={snapshot.triage_result}
+      displayRoot={snapshot.display_root}
       compact={false}
       open={open} />
     : <p className="panel-body muted">The diagnosis will appear after the Triage agent gathers evidence and assesses root causes.</p>

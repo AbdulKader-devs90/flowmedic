@@ -1,10 +1,11 @@
+import { kindHints } from '@/lib/display'
 import type { PlanStep } from '@/lib/contracts'
 import { CopyButton } from './diagnosis'
 
 export function StepDetails({ step }: { step: PlanStep }) {
   return (
     <div className="step-details">
-      <p className="hint">Where: <code>{step.where}</code> · <span className={step.kind}>[{step.kind}]</span>
+      <p className="hint">Where: <code>{step.where}</code> · <span title={kindHints[step.kind]} className={step.kind}>[{step.kind}]</span>
       </p>
       <pre className="command">
         <code>{step.command_or_action}</code>

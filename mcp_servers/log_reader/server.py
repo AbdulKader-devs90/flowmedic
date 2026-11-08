@@ -69,9 +69,15 @@ class LogReader:
         folder = self._path(root, directory=True)
         files = []
         for candidate in sorted(folder.rglob("*")):
+            if any(
+                part.startswith(".") for part in candidate.relative_to(folder).parts
+            ):
+                continue
             if candidate.is_symlink() or candidate.is_file():
                 path = self._path(str(candidate))
                 info = path.stat()
+                if info.st_size == 0:
+                    continue
                 files.append(
                     {
                         "name": str(candidate.relative_to(folder)),

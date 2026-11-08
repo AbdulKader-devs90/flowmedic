@@ -354,3 +354,5 @@ checkpoint can then be reopened with Continue. Evidence viewers show captured,
 masked excerpts with their original line references, rather than entire files.
 The environment picker uses the environments in the scenario catalog because the
 API has no separate environment catalog endpoint.
+
+For read-only Setup and Knowledge pages and repository configuration guides, see [Configure FlowMedic](docs/CONFIGURE.md).

@@ -1,3 +1,5 @@
+import { SetupPage, KnowledgePage } from '@/components/configuration-pages'
+import { displayPath } from '@/lib/display'
 import { HowItWorks } from '@/components/how-it-works'
 import { StageTracker } from '@/components/stage-tracker'
 import { StoryTimeline } from '@/components/story-timeline'
@@ -25,19 +27,17 @@ import { questionType } from '@/lib/contracts'
 import type { Activity, Plan, Question, Resume, Snapshot, TriageResult } from '@/lib/contracts'
 export default function App() {
   const client = useQueryClient()
-  const [selected, setSelected] = useState<string | null>(() => {
-    try {
-      return sessionStorage.getItem('flowmedic.selected')
-    } catch {
-      return null
-    }
-
-  })
+  const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(window.location.search).get('incident'))
 
   const selectedRef = useRef<string | null>(selected)
   const [newOpen, setNewOpen] = useState(false), [commandOpen, setCommandOpen] = useState(false), [detailsOpen, setDetailsOpen] = useState(false)
   const [page, setPage] = useState('War room')
-  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(() => {
+    try { return localStorage.getItem('flowmedic.help.seen') !== 'true' } catch { return true }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('flowmedic.help.seen', 'true') } catch { /* Help remains available without storage. */ }
+  }, [])
   const [sent, setSent] = useState(false)
   const [stories, setStories] = useState<Record<string, Milestone[]>>({})
   const [tabChoice, setTabChoice] = useState<{
@@ -152,16 +152,16 @@ export default function App() {
         remember(id, {
           id: 'logs-approved',
           stage: 'Logs',
-          title: `Log access approved (${question.folder}, ${window.start_time || 'start of export'} – ${window.end_time || 'end of export'})`
+          title: `Log access approved (${displayPath(question.folder, state?.display_root)}, ${window.start_time || 'start of export'} – ${window.end_time || 'end of export'})`
         })
 
       }
 
       if (reply.kind === 'step_result' && question && 'type' in question && question.type === 'step' && typeof reply.payload === 'object') {
         remember(id, {
-          id: `step-${question.n}-${question.command_or_action}`,
+          id: `plan-${1 + readStory(id).filter(row => row.id.startsWith('revision-')).length}-step-${question.n}-${question.command_or_action}`,
           stage: 'Fix',
-          title: `Step ${question.n} ${reply.payload.status}: ${question.title}`,
+          title: `Plan ${1 + readStory(id).filter(row => row.id.startsWith('revision-')).length} · Step ${question.n} ${reply.payload.status}: ${question.title}`,
           detail: String(reply.payload.output || '').replace(/\s+/g, ' ').slice(0, 180)
         })
 
@@ -180,13 +180,16 @@ export default function App() {
     }
   })
 
-  const select = useCallback((id: string) => {
+  const select = useCallback((id: string | null, push = true) => {
     stream.stop()
     selectedRef.current = id
     setSelected(id)
-    try {
-      sessionStorage.setItem('flowmedic.selected', id)
-    } catch { /* Selection still works without storage. */ }
+    if (push) {
+      const url = new URL(window.location.href)
+      if (id) url.searchParams.set('incident', id)
+      else url.searchParams.delete('incident')
+      if (url.href !== window.location.href) window.history.pushState({}, '', url)
+    }
 
     setPage('War room')
     setSent(false)
@@ -194,6 +197,16 @@ export default function App() {
     setEvidence(null)
     resume.reset()
   }, [stream, resume])
+
+  useEffect(() => {
+    const back = () => select(new URLSearchParams(window.location.search).get('incident'), false)
+    window.addEventListener('popstate', back)
+    return () => window.removeEventListener('popstate', back)
+  }, [select])
+  const navigate = (name: string) => {
+    if (name === 'War room') select(null)
+    else { stream.stop(); setPage(name) }
+  }
 
   // Keyboard listener is intentionally rebound to the latest selected incident actions.
   useEffect(() => {
@@ -256,27 +269,25 @@ export default function App() {
     })}
     revised={remembered.some(row => row.id.startsWith('revision-'))} />
   return <>
-    <AppShell pageTitle={page} onHelp={() => setHelpOpen(true)}>
+    <AppShell pageTitle={page} onHome={() => select(null)} onHelp={() => setHelpOpen(true)}>
       <LeftRail
         incidents={incidents}
         selected={selected}
         select={select}
         snapshot={snapshot.data}
         page={page}
-        setPage={setPage}
+        setPage={navigate}
         problemFilter={problemFilter}
         setProblemFilter={setProblemFilter}
         setNewOpen={setNewOpen}
         setCommandOpen={setCommandOpen} />
-      <main className="workspace">
+      <main className={`workspace ${page !== 'War room' ? 'catalog-workspace' : ''}`}>
         {page !== 'War room' ? (
-          <section className="panel-body">
-            <h1>{page}</h1>
-            <p className="muted mt-3">Coming in the next step</p>
-          </section>
+          page === 'Setup' ? <SetupPage onKnowledge={() => setPage('Knowledge')} /> : <KnowledgePage open={id => setEvidence({ doc: id })} />
         ) : <>
           <header className="workspace-head">
             <div className="min-w-0">
+              <div>{selected && <button className="hint mb-2" onClick={() => select(null)}>← All incidents</button>}</div>
               <h1>{selected ? 'Incident war room' : 'War room'}</h1>
               <p className="hint mt-1">{selected ? `${current?.environment || snapshot.data?.context.environment || 'Environment pending'} · ${selected.slice(0, 8)}` : 'Diagnose the break. Guide the fix.'}</p>
             </div>
@@ -290,7 +301,8 @@ export default function App() {
           {selected && <StageTracker
             snapshot={snapshot.data}
             liveNode={liveNode}
-            activity={activity} />
+            activity={activity}
+            logsApproved={remembered.some(row => row.id === 'logs-approved')} />
           }
           <div className="timeline">
             <div className="timeline-content">
@@ -365,14 +377,16 @@ export default function App() {
             running={stream.running}
             sent={sent && snapshot.data.stage !== 'closed'}
             submit={submit}
-            continueIncident={() => stream.start(selected)} />
+            continueIncident={() => stream.start(selected)}
+            onNew={() => setNewOpen(true)}
+            onHome={() => select(null)} />
           }
           <footer className="px-6 py-3 border-t border-border flex-row hint">
             <ShieldCheck />The engineer runs every command.</footer>
         </>
         }
       </main>
-      <aside className="inspector" aria-label="Incident reference">{page === 'War room' && diagnosis}</aside>
+      {page === 'War room' && <aside className="inspector" aria-label="Incident reference">{diagnosis}</aside>}
     </AppShell>
     <NewIncident
       open={newOpen}

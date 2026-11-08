@@ -504,3 +504,68 @@ unavailable. No backend features were added to fill these gaps. Windows runtime
 and live-model integration were not exercised in this offline step.
 
 Next: Step 5c-2, read-only Setup and Knowledge pages; then Step 5d visual polish.
+
+## Step 5c-2: Setup, Knowledge and help
+
+Implemented the read-only Setup and Knowledge pages in the existing design system.
+No configuration-writing UI, live model calls or new agent actions were added.
+
+- Added GET `/api/platforms`, `/api/environments` and searchable `/api/knowledge`
+  catalogs using the existing loaders. Responses include repository-relative
+  source files, profile questions, log samples/pattern counts, topology counts,
+  architecture availability and document verification. Architecture PNGs have a
+  read-only, environment-validated endpoint. Knowledge source metadata is excluded
+  from existing document serialization and embedding payloads.
+- Setup lists all profiles, questions in plain language, components/log patterns,
+  knowledge counts and environments using the existing topology component. Added
+  expandable Kong configuration guides and `docs/CONFIGURE.md`, linked from README.
+  The real topology schema uses `components` and `links`, not `nodes` and `edges`;
+  layers derive from component type and dependencies use `hard: true/false`.
+  The ingest command is `uv run python -m flowmedic.knowledge.ingest`.
+- Knowledge supports ID/title search, table rows and keyboard-accessible document
+  buttons opening the existing evidence viewer. Verification reflects front matter.
+- Added field hints, platform names in environment choices, grouped demo scenarios,
+  the read-only safety explanation, source/kind/severity/confidence tooltips, and
+  first-visit help remembered with guarded localStorage access.
+- Preserved absolute approval paths internally; UI evidence, approval and story
+  paths use the snapshot's display root to render repository-relative references.
+  Log discovery now excludes hidden paths and empty files, with a unit test.
+  Clarified blank approval times, standardized topology label sizes, and retained
+  bottom-centre → top-centre edge anchors already used by the topology component.
+- Corrected re-triage status, skipped Logs/Fix stage indications, duplicate diagnosis
+  notes and plan-version story labels. Save approval shows a readable record with
+  collapsed JSON and explicit escalation-note wording when no steps worked.
+- War room navigation, the logo, All incidents and completion actions return home.
+  Incident selection uses `?incident=<id>` with browser history and refresh support;
+  Escape only closes dialogs. Completion also offers Start a new incident.
+
+Checks (offline only):
+
+- Build: PASS after correcting the Setup preview's TypeScript snapshot shape.
+  Vite retains a non-fatal chunk-size advisory (approximately 538 kB uncompressed).
+- ESLint: PASS, zero warnings in the final run. Python ruff lint/format: PASS.
+- `npx impeccable detect app/web/src`: one finding, `overused-font` for Geist.
+  Retained as required by DESIGN.md; source scanning does not verify rendered contrast.
+- Playwright: 7 PASS using the existing fake HTTP/SSE spec, extended for the catalogs,
+  evidence/search, first visit and URL navigation. The supplied root invocation
+  did not discover `app/web/playwright.config.ts` and failed before executing tests
+  because its default Chromium binary was unavailable. Retried with
+  `npx --prefix app/web playwright test --config app/web/playwright.config.ts`;
+  the configured installed Chrome ran all seven successfully. No downloads or live APIs.
+- `uv run pytest -q -m "not live"`: 126 PASS, 4 deselected, one final suite run.
+- Inspected captured Setup, Knowledge and approval screenshots. Added explicit
+  decimal list markers after Tailwind reset hid guide numbering, and made the log
+  attachment hint stack below its input. Final build/lint cover these small visual
+  corrections; the browser suite was not repeated for visual polish.
+- Vite was started once for the fake-API checks and stopped. Existing unrelated
+  development processes were left alone. Screenshots are available in `.cache/`.
+
+Run the app with the existing local API and `npm --prefix app/web run dev`.
+For offline browser checks, run the Vite server and
+`cd app/web && npx --offline playwright test` (or pass the explicit config from
+repo root as above). All spec API requests are intercepted. New pytest coverage
+is in `tests/test_api.py` and `tests/test_log_discovery.py`.
+
+Next: Step 5d visual polish. Live providers and Windows runtime were not exercised.
+Approval stories, prior plan versions and result excerpts remain browser-session
+history; the new approval boolean restores skipped-stage accuracy from checkpoints.

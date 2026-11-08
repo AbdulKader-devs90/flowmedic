@@ -1,3 +1,4 @@
+import { displayPath, trustHints } from '@/lib/display'
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, FileSearch, ExternalLink } from 'lucide-react'
@@ -46,8 +47,8 @@ export function EvidenceDrawer({ target, snapshot, close }: {
           className="drawer">
           <header className="drawer-head">
             <div className="min-w-0">
-              <Dialog.Title className="text-lg break-words">{target?.doc || target?.file || 'Incident evidence'}</Dialog.Title>
-              <Dialog.Description className="hint">{target?.doc ? 'Knowledge document · reviewed source' : 'Masked diagnostic excerpts · original line references'}</Dialog.Description>
+              <Dialog.Title className="text-lg break-words">{target?.doc || displayPath(target?.file || 'Incident evidence', snapshot?.display_root)}</Dialog.Title>
+              <Dialog.Description className="hint">{target?.doc ? 'Knowledge document · repository source' : 'Masked diagnostic excerpts · original line references'}</Dialog.Description>
             </div>
             <Dialog.Close className="icon-button" aria-label="Close evidence">
               <X />
@@ -57,7 +58,7 @@ export function EvidenceDrawer({ target, snapshot, close }: {
           </div>
             }{doc.data && <>
               <h2 className="section-title">{doc.data.title}</h2>
-              <div className="badge mb-5 verified">Verified · {doc.data.type}</div>
+              <div title={doc.data.front_matter.verified ? trustHints.verified : 'This document has not been verified.'} className={`badge mb-5 ${doc.data.front_matter.verified ? 'verified' : ''}`}>{doc.data.front_matter.verified ? 'Verified' : 'Unreviewed'} · {doc.data.type}</div>
               <div className="space-y-3 text-sm">{doc.data.body.split('\n').map((line, i) => line.startsWith('#') ? <h3 key={i} className="text-lg pt-4">{line.replace(/^#+\s*/, '')}</h3> : <p key={i} className={line.startsWith('```') ? 'mono muted' : 'whitespace-pre-wrap break-words'}>{line}</p>)}</div>
             </>
             }</div> : <>
@@ -71,7 +72,7 @@ export function EvidenceDrawer({ target, snapshot, close }: {
               className={`log-line ${line.line_no === target?.line ? 'target' : ''}`}
               key={`${line.source_file}-${line.line_no}-${i}`}>
               <span className="muted text-right" aria-label={`Line ${line.line_no}`}>{line.line_no}</span>
-              <div>{!target?.file && <p className="hint mb-1">{line.source_file}</p>
+              <div>{!target?.file && <p className="hint mb-1">{displayPath(line.source_file, snapshot?.display_root)}</p>
               }<MaskedText text={line.text} signature={line.signature} />
               </div>
             </div>)}{!!snapshot?.flags.length && <section className="flag-strip">

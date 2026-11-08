@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query'
+import { api } from '@/lib/api'
 import { useState } from 'react'
 import { Plus, Upload, ArrowRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog'
@@ -18,7 +20,10 @@ export function NewIncident({ open, close, scenarios, create, busy, error }: {
   const [message, setMessage] = useState('')
   const [environment, setEnvironment] = useState('sample-prod')
   const [files, setFiles] = useState<File[]>([])
-  const environments = [...new Set(['sample-prod', 'kong-sample', ...scenarios.flatMap(s => s.environment ? [s.environment] : [])])]
+  const environments = useQuery({ queryKey: ['environments'], queryFn: api.environments })
+  const platforms = useQuery({ queryKey: ['platforms'], queryFn: api.platforms })
+  const platformName = (id: string | null) => platforms.data?.find(p => p.id === id)?.name || id || 'Other'
+  const groups = [...new Set(scenarios.map(s => s.platform))]
   return <Dialog open={open} onOpenChange={value => {
     if (!busy && !value) close()
   }}>
@@ -27,6 +32,7 @@ export function NewIncident({ open, close, scenarios, create, busy, error }: {
         <DialogTitle>New incident</DialogTitle>
         <DialogDescription className="muted">Describe what broke. You stay in control of every action.</DialogDescription>
       </DialogHeader>
+      <p className="hint">FlowMedic only reads logs you approve. It never runs commands on your servers.</p>
       <form onSubmit={e => {
         e.preventDefault()
         create({ message, environment }, files)
@@ -37,27 +43,28 @@ export function NewIncident({ open, close, scenarios, create, busy, error }: {
           onChange={e => setMessage(e.target.value)}
           placeholder="What is failing? Include symptoms, timing and recent changes."
           required
-          maxLength={100000} />
+          maxLength={100000} /><span className="hint">Include symptoms, when they started and recent changes.</span>
         </label>
         <label className="label">Environment<select
           className="field mt-2"
           value={environment}
-          onChange={e => setEnvironment(e.target.value)}>{environments.map(env => <option key={env}>{env}</option>)}</select>
+          onChange={e => setEnvironment(e.target.value)}>{(environments.data || []).map(env => <option key={env.id} value={env.id}>{env.id} · {platformName(env.platform)}</option>)}</select><span className="hint">Choose the reviewed topology for the affected system.</span>
         </label>
-        <label className="label flex items-center gap-2 cursor-pointer">
-          <Upload />Attach UTF-8 log exports<input
+        <label className="label cursor-pointer">
+          <span className="flex-row"><Upload />Attach UTF-8 log exports</span><input
             className="field mt-2 text-xs"
             type="file"
             accept=".log,.txt,.csv,.json,.xml,text/*"
             multiple
-            onChange={e => setFiles(Array.from(e.target.files || []))} />
+            onChange={e => setFiles(Array.from(e.target.files || []))} /><span className="hint block mt-2">Optional text exports, up to 50 MiB each. You approve read access separately.</span>
         </label>{files.map(file => <p className="hint" key={file.name}>{file.name} · {Math.ceil(file.size / 1024)} KB</p>)}{error && <p className="error" role="alert">{error}</p>
         }<Button type="submit" disabled={busy || !message.trim()}>
           <Plus />{busy ? 'Creating incident…' : 'Create incident'}</Button>
       </form>
+      {environments.error && <p className="error">Could not load environments. <button onClick={() => void environments.refetch()}>Retry</button></p>}
       <div className="divider" />
       <h3 className="text-sm">Load demo scenario</h3>
-      <div className="max-h-52 overflow-auto">{scenarios.map(s => <button
+      <div className="max-h-52 overflow-auto">{groups.map(platform => <section key={platform || 'other'}><h4 className="mt-4 text-sm muted">{platformName(platform)}</h4>{scenarios.filter(s => s.platform === platform).map(s => <button
         className="scenario"
         key={s.id}
         disabled={busy}
@@ -65,7 +72,7 @@ export function NewIncident({ open, close, scenarios, create, busy, error }: {
         <code className="text-xs">{s.id}</code>
         <span className="text-sm">{s.title}</span>
         <ArrowRight />
-      </button>)}</div>
+      </button>)}</section>)}</div>
       <Button
         variant="ghost"
         className="absolute right-4 top-4"

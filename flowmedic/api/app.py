@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -26,13 +26,14 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sse_starlette.sse import EventSourceResponse
 
 from flowmedic.agents.triage.run import initial_state
-from flowmedic.config import get_settings
+from flowmedic.config import REPO_ROOT, get_settings
 from flowmedic.graph import state as contracts
 from flowmedic.graph.main_graph import build_graph
 from flowmedic.graph.state import Evidence, Interpretation, StepReply
 from flowmedic.knowledge.loaders import (
     list_scenarios,
     load_documents,
+    load_profile,
     load_scenario,
     load_topology,
 )
@@ -213,6 +214,82 @@ def create_app(*, graph: Any = None) -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/api/platforms")
+    async def platforms() -> Any:
+        result = []
+        for path in sorted((REPO_ROOT / "platforms").glob("*.yaml")):
+            profile = load_profile(path.stem)
+            result.append(
+                {
+                    "id": profile["id"],
+                    "name": profile["name"],
+                    "versions": profile.get("versions", []),
+                    "os": profile.get("os", []),
+                    "clarify_slots": profile.get(
+                        "clarify_slots", {"required": [], "optional": []}
+                    ),
+                    "components": [
+                        {
+                            "type": c["type"],
+                            "logs": c.get("logs", []),
+                            "error_pattern_count": len(c.get("error_patterns", [])),
+                            "error_patterns": c.get("error_patterns", [])[:3],
+                        }
+                        for c in profile.get("components", [])
+                    ],
+                    "default_environment": profile.get("default_environment"),
+                    "source_file": path.relative_to(REPO_ROOT).as_posix(),
+                }
+            )
+        return safe_output(result)
+
+    @app.get("/api/environments")
+    async def environments() -> Any:
+        result = []
+        for path in sorted((REPO_ROOT / "environments").glob("*/topology.yaml")):
+            topo = load_topology(path.parent.name)
+            result.append(
+                {
+                    "id": path.parent.name,
+                    "platform": topo.get("platform"),
+                    "node_count": len(topo["components"]),
+                    "edge_count": len(topo["links"]),
+                    "has_architecture": (path.parent / "architecture.png").is_file(),
+                    "source_file": path.relative_to(REPO_ROOT).as_posix(),
+                }
+            )
+        return safe_output(result)
+
+    @app.get("/api/environments/{environment}/architecture")
+    async def architecture(environment: str) -> FileResponse:
+        try:
+            load_topology(environment)
+        except (ValueError, FileNotFoundError):
+            raise HTTPException(404, "Unknown environment") from None
+        path = REPO_ROOT / "environments" / environment / "architecture.png"
+        if not path.is_file() or not path.resolve().is_relative_to(REPO_ROOT):
+            raise HTTPException(404, "No architecture diagram")
+        return FileResponse(path, media_type="image/png")
+
+    @app.get("/api/knowledge")
+    async def knowledge_index(q: str = "") -> Any:
+        return safe_output(
+            [
+                {
+                    "id": doc.doc_id,
+                    "type": doc.doc_type,
+                    "title": doc.title,
+                    "platform": doc.platform,
+                    "category": doc.category,
+                    "verified": doc.verified,
+                    "source_file": doc.source_file,
+                }
+                for doc in load_documents()
+                if q.casefold() in doc.doc_id.casefold()
+                or q.casefold() in doc.title.casefold()
+            ]
+        )
+
     @app.get("/api/scenarios")
     async def scenarios() -> Any:
         result = []
@@ -303,6 +380,8 @@ def create_app(*, graph: Any = None) -> FastAPI:
         return safe_output(
             {
                 "id": incident_id,
+                "display_root": REPO_ROOT.as_posix(),
+                "logs_approved": bool(values.get("approved")),
                 "context": values.get("context", values.get("context_answers", {})),
                 "stage": stage(values, snap),
                 "triage_result": values.get("result"),

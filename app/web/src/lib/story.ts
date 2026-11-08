@@ -51,10 +51,10 @@ export function storyMilestones(snapshot: Snapshot, remembered: Milestone[], rep
   for (const step of snapshot.plan?.steps || []) {
     if (step.status && step.status !== 'pending') {
       const id = `step-${step.n}-${step.command_or_action}`
-      if (!rows.some(row => row.id === id)) rows.push({
+      if (!rows.some(row => row.id === id || row.id.endsWith(id))) rows.push({
         id,
         stage: 'Fix',
-        title: `Step ${step.n} ${step.status}: ${step.title}`
+        title: `Plan ${1 + remembered.filter(row => row.id.startsWith('revision-')).length} · Step ${step.n} ${step.status}: ${step.title}`
       })
 
     }

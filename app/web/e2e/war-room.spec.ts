@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => { localStorage.setItem('flowmedic.help.seen', 'true') })
+})
+const platforms = ['webmethods', 'kong', 'oracle', 'linux', 'windows'].map(id => ({
+  id, name: id === 'kong' ? 'Kong Gateway' : id === 'webmethods' ? 'webMethods' : id,
+  versions: ['3.8'], os: ['linux'], clarify_slots: { required: ['version'], optional: ['environment'] },
+  components: [{ type: 'kong_data_plane', logs: ['error.log'], error_pattern_count: 4, error_patterns: ['upstream timed out'] }],
+  default_environment: id === 'kong' ? 'kong-sample' : 'sample-prod', source_file: `platforms/${id}.yaml`,
+}))
+const environments = [{ id: 'sample-prod', platform: 'webmethods' }, { id: 'kong-sample', platform: 'kong' }].map(env => ({ ...env, node_count: 4, edge_count: 3, has_architecture: false, source_file: `environments/${env.id}/topology.yaml` }))
+const knowledgeEntries = [{ id: 'INC-003', title: 'JDBC pool exhaustion under load', type: 'incident', platform: 'webmethods', category: 'POOL', verified: true, source_file: 'knowledge/incidents/INC-003.md' }]
+
 const step = {
   n: 1,
   title: 'Inspect connection pool',
@@ -68,6 +80,8 @@ async function fakeApi(page: Page, replan = false) {
 
   const snapshot = () => ({
     id: 'offline-001',
+    display_root: '/synthetic/repo',
+    logs_approved: phase >= 2,
     context: { environment: 'sample-prod', platform: 'webmethods' },
     stage: phase < 2 ? 'triage' : phase === (replan ? 5 : 4) ? 'closed' : 'planner',
     triage_result: phase >= 2 ? triage : null,
@@ -91,6 +105,12 @@ async function fakeApi(page: Page, replan = false) {
       body: JSON.stringify(body)
     })
 
+    if (path === '/api/platforms') return json(platforms)
+    if (path === '/api/environments') return json(environments)
+    if (path === '/api/knowledge') {
+      const q = new URL(route.request().url()).searchParams.get('q')?.toLowerCase() || ''
+      return json(knowledgeEntries.filter(doc => `${doc.id} ${doc.title}`.toLowerCase().includes(q)))
+    }
     if (path === '/api/scenarios') return json([{
       id: 'SC-001',
       title: 'Integration services cannot connect to database',
@@ -161,7 +181,7 @@ async function fakeApi(page: Page, replan = false) {
       id: 'INC-003',
       title: 'JDBC pool exhaustion under load',
       type: 'incident',
-      front_matter: {},
+      front_matter: { verified: true },
       body: '## Symptoms\nJDBC pool exhausted.\n## Resolution\nReview capacity before changes.'
     })
 
@@ -300,7 +320,7 @@ test('re-plan returns the reference to Plan and restores the revised story on re
   await expect(page.getByRole('region', { name: 'Story so far' }).getByText('JDBC remains exhausted; new thread evidence')).toBeVisible()
 })
 
-test('help and navigation placeholders preserve the war room', async ({ page }) => {
+test('help, Setup and Knowledge use repository data and evidence', async ({ page }) => {
   await fakeApi(page)
   await page.goto('/')
   await expect(page.getByRole('region', { name: 'How FlowMedic works' })).toBeVisible()
@@ -308,9 +328,63 @@ test('help and navigation placeholders preserve the war room', async ({ page }) 
   await expect(page.getByRole('dialog').getByRole('listitem')).toHaveCount(4)
   await page.keyboard.press('Escape')
   await page.getByRole('navigation').getByRole('button', { name: 'Setup', exact: true }).click()
-  await expect(page.getByText('Coming in the next step')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Platforms', exact: true })).toBeVisible()
+  await expect(page.getByText('platforms/kong.yaml', { exact: true })).toBeVisible()
+  await page.getByText('How to add a platform', { exact: true }).click()
+  await expect(page.getByText(/then run: uv run python -m flowmedic.knowledge.ingest/)).toBeVisible()
+  await page.screenshot({ path: '../../.cache/flowmedic-setup.png' })
   await page.getByRole('navigation').getByRole('button', { name: 'Knowledge', exact: true }).click()
-  await expect(page.getByText('Coming in the next step')).toBeVisible()
+  await expect(page.getByRole('table')).toBeVisible()
+  await page.getByRole('searchbox').fill('INC-003')
+  await page.getByRole('button', { name: 'INC-003', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'JDBC pool exhaustion under load' })).toBeVisible()
+  await page.getByRole('button', { name: 'Close evidence' }).click()
+  await page.getByRole('searchbox').fill('missing')
+  await expect(page.getByText('No documents match this search.')).toBeVisible()
+  await page.getByRole('searchbox').fill('')
+  await page.screenshot({ path: '../../.cache/flowmedic-knowledge.png' })
   await page.getByRole('navigation').getByRole('button', { name: 'War room', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'No active incident' })).toBeVisible()
+})
+
+
+test('incident URL supports home, refresh, browser history and dialog-only Escape', async ({ page }) => {
+  await fakeApi(page)
+  await page.goto('/')
+  await page.getByRole('button', { name: /SC-001 Integration/ }).click()
+  await expect(page).toHaveURL(/incident=offline-001/)
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(/incident=offline-001/)
+  await page.getByRole('button', { name: '← All incidents', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'No active incident' })).toBeVisible()
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'Your turn: answer one question' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Your turn: answer one question' })).toBeVisible()
+  await page.getByRole('button', { name: 'FlowMedic home' }).click()
+  await expect(page.getByRole('heading', { name: 'No active incident' })).toBeVisible()
+  await page.goBack()
+  await page.getByRole('navigation').getByRole('button', { name: 'War room', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'No active incident' })).toBeVisible()
+  await page.goBack()
+  await page.goForward()
+  await expect(page.getByRole('heading', { name: 'No active incident' })).toBeVisible()
+})
+
+test('first visit opens help once and the help button always reopens it', async ({ page }) => {
+  await fakeApi(page)
+  await page.goto('/')
+  await page.evaluate(() => localStorage.removeItem('flowmedic.help.seen'))
+  // Remove the test setup override for this navigation using a fresh browser context.
+  const context = await page.context().browser()!.newContext()
+  const first = await context.newPage()
+  await fakeApi(first)
+  await first.goto('http://127.0.0.1:5173/')
+  await expect(first.getByRole('dialog')).toBeVisible()
+  await first.keyboard.press('Escape')
+  await first.reload()
+  await expect(first.getByRole('dialog')).toHaveCount(0)
+  await first.getByRole('button', { name: 'How FlowMedic works', exact: true }).click()
+  await expect(first.getByRole('dialog')).toBeVisible()
+  await context.close()
 })

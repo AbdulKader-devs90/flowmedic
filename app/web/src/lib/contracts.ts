@@ -7,8 +7,8 @@ export interface TriageResult { category: string; severity: string; route: 'know
 export interface Plan { steps: PlanStep[] }
 export type Question = { kind: 'context' | 'evidence'; slots: string[]; allowed_values?: Record<string, string[]>; why: string } | { kind: 'log_access'; folder: string; start_time: string | null; end_time: string | null; why: string } | ({ type: 'step' } & PlanStep) | { type: 'approve_save'; record: Record<string, unknown>; outcome: string }
 export interface PendingInterrupt { type: string; payload: Question }
-export interface Snapshot { id: string; context: Record<string, string | null>; stage: Stage; triage_result: TriageResult | null; plan: Plan | null; flags: string[]; evidence: Evidence[]; pending_interrupt: PendingInterrupt | null }
-export interface TopologyNode { id: string; type: string; name?: string; label?: string; host?: string; status: 'quiet' | 'affected' | 'check_next' | 'checked_ok' | 'checked_issue'; order?: number }
+export interface Snapshot { display_root?: string; logs_approved?: boolean; id: string; context: Record<string, string | null>; stage: Stage; triage_result: TriageResult | null; plan: Plan | null; flags: string[]; evidence: Evidence[]; pending_interrupt: PendingInterrupt | null }
+export interface TopologyNode { layer?: number; id: string; type: string; name?: string; label?: string; host?: string; status: 'quiet' | 'affected' | 'check_next' | 'checked_ok' | 'checked_issue'; order?: number }
 export interface Topology { nodes: TopologyNode[]; edges: { from: string; to: string; type?: string; label?: string }[] }
 export interface KnowledgeDoc { id: string; title: string; type: string; body: string; front_matter: Record<string, unknown> }
 export type Resume = { kind: 'answer' | 'approve_logs' | 'step_result' | 'approve_save' | 'retriage'; payload: Record<string, unknown> | boolean }
@@ -18,3 +18,6 @@ export type StreamName = keyof StreamEvents
 export const streamNames: StreamName[] = ['node_started', 'node_finished', 'tool_called', 'tool_result', 'triage_result', 'plan_updated', 'interrupt', 'error', 'done']
 export const questionType = (question: Question): string => 'kind' in question ? question.kind : question.type
 export const humanize = (value: string) => value.replaceAll('_', ' ').replace(/\b\w/, c => c.toUpperCase())
+export interface Platform { id: string; name: string; versions: string[]; os: string[]; clarify_slots: { required: string[]; optional: string[] }; components: { type: string; logs: string[]; error_pattern_count: number; error_patterns: string[] }[]; default_environment: string | null; source_file: string }
+export interface Environment { id: string; platform: string; node_count: number; edge_count: number; has_architecture: boolean; source_file: string }
+export interface KnowledgeEntry { id: string; type: string; title: string; platform: string; category: string; verified: boolean; source_file: string }

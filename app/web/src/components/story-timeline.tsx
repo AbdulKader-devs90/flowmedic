@@ -1,3 +1,4 @@
+import { displayPath } from '@/lib/display'
 import { Activity as Pulse, Check, FileSearch } from 'lucide-react'
 import type { Activity, Snapshot } from '@/lib/contracts'
 import { plainLabel, stages } from '@/lib/stage'
@@ -23,7 +24,7 @@ export function StoryTimeline({ snapshot, report, activity, remembered }: {
             <ul>
               {rows.map(row => (
                 <li key={row.id}>
-                  <p>{row.title}</p>
+                  <p>{displayPath(row.title, snapshot.display_root)}</p>
                   {row.detail && <p className="muted story-excerpt">{row.detail}</p>
                   }
                 </li>
@@ -42,7 +43,7 @@ export function StoryTimeline({ snapshot, report, activity, remembered }: {
             }
             <div className="min-w-0 flex-1">
               <span>{plainLabel(row.node)}</span>
-              <p className="muted break-words">{plainLabel(row.summary)}{row.target ? ` · ${row.target}` : ''}</p>
+              <p className="muted break-words">{displayPath(plainLabel(row.summary), snapshot.display_root)}{row.target ? ` · ${displayPath(row.target, snapshot.display_root)}` : ''}</p>
             </div>
             <time className="hint">{row.time}</time>
           </div>
