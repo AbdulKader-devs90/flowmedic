@@ -1,72 +1,448 @@
+import { HowItWorks } from '@/components/how-it-works'
+import { StageTracker } from '@/components/stage-tracker'
+import { StoryTimeline } from '@/components/story-timeline'
+import type { InspectorTab } from '@/components/inspector-tabs'
+import { plainLabel, planSignature } from '@/lib/stage'
+import { readStory, writeStory } from '@/lib/story'
+import type { Milestone } from '@/lib/story'
+import { AppShell } from '@/components/app-shell'
+import { LeftRail } from '@/components/left-rail'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion, useReducedMotion } from 'framer-motion'
-import { Activity as ActivityIcon, ArrowRight, Check, CircleHelp, FileSearch, ListFilter, PanelRight, Plus, Radio, Search, ShieldCheck, Terminal } from 'lucide-react'
+import { Activity as ActivityIcon, ArrowRight, FileSearch, PanelRight, Plus, Search, ShieldCheck, Terminal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
-import { ActionCard } from '@/components/action-card'
-import { DiagnosisPanel, SeverityPill } from '@/components/diagnosis'
+import { YourTurnCard } from '@/components/your-turn-card'
+import { InspectorTabs } from '@/components/inspector-tabs'
 import { EvidenceDrawer } from '@/components/evidence-drawer'
 import type { EvidenceTarget } from '@/components/evidence-drawer'
 import { NewIncident } from '@/components/new-incident'
 import { useIncidentStream } from '@/hooks/use-incident-stream'
 import type { EventHandler } from '@/hooks/use-incident-stream'
 import { api } from '@/lib/api'
-import { humanize, questionType } from '@/lib/contracts'
+import { questionType } from '@/lib/contracts'
 import type { Activity, Plan, Question, Resume, Snapshot, TriageResult } from '@/lib/contracts'
-function age(value: string) { const minutes=Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/60000)); return Number.isNaN(minutes) ? '' : minutes<1 ? 'just now' : minutes<60 ? `${minutes}m ago` : `${Math.floor(minutes/60)}h ago` }
-const nodeLabels: Record<string,string>={ intake:'Reading incident report', load_context:'Loading environment context', request_log_access:'Requesting log access', evidence:'Reading log evidence', clarify:'Confirming environment details', classify:'Assessing root causes', retrieve:'Searching knowledge', research:'Checking vendor documentation', synthesize:'Preparing triage assessment', make_plan:'Building resolution plan', plan:'Building resolution plan', execute:'Awaiting engineer check', interpret:'Reviewing reported output', approve_save:'Requesting save approval', record:'Preparing incident record' }
 export default function App() {
- const client=useQueryClient(),reduced=useReducedMotion()
- const [selected,setSelected]=useState<string | null>(null)
- const selectedRef=useRef<string | null>(null)
- const [newOpen,setNewOpen]=useState(false),[commandOpen,setCommandOpen]=useState(false),[detailsOpen,setDetailsOpen]=useState(false)
- const timelineEnd=useRef<HTMLDivElement>(null)
- const [knowledgeSearch,setKnowledgeSearch]=useState('')
- const [evidence,setEvidence]=useState<EvidenceTarget | null>(null)
- const [activities,setActivities]=useState<Record<string,Activity[]>>({})
- const [liveNode,setLiveNode]=useState<string | null>(null)
- const [problemFilter,setProblemFilter]=useState('')
- const [creationError,setCreationError]=useState<string | null>(null)
- const [uploadRecovery,setUploadRecovery]=useState<string | null>(null)
- const activityId=useRef(0)
- const scenarios=useQuery({ queryKey:['scenarios'],queryFn:api.scenarios })
- const incidents=useQuery({ queryKey:['incidents'],queryFn:api.incidents })
- const snapshot=useQuery({ queryKey:['incident',selected],queryFn:() => api.snapshot(selected!),enabled:!!selected })
- const refresh=useCallback(() => { setLiveNode(null);void client.invalidateQueries({ queryKey:['incident',selectedRef.current] });void client.invalidateQueries({ queryKey:['incidents'] });void client.invalidateQueries({ queryKey:['topology'] }) },[client])
- const onEvent: EventHandler=useCallback((name,data) => {
-   const id=selectedRef.current;if(!id) return
-   if(name==='triage_result') client.setQueryData<Snapshot>(['incident',id],old => old ? { ...old,triage_result:data as TriageResult } : old)
-   if(name==='plan_updated') client.setQueryData<Snapshot>(['incident',id],old => old ? { ...old,plan:data as Plan,stage:'planner' } : old)
-   if(name==='interrupt') { const question=data as Question;client.setQueryData<Snapshot>(['incident',id],old => old ? { ...old,pending_interrupt:{ type:questionType(question),payload:question } } : old);setLiveNode(null) }
-   if(name==='node_started' || name==='node_finished' || name==='tool_called' || name==='tool_result') {
-     const row=data as { node?: string; tool?: string; summary?: string; target?: string }
-     const node=row.node || row.tool || 'Agent activity'
-     if(name==='node_started') setLiveNode(node)
-     if(name==='node_finished') setLiveNode(current => current===node ? null : current)
-     const activity: Activity={ id:++activityId.current,event:name,node,summary:row.summary || nodeLabels[node] || humanize(node),target:row.target,time:new Date().toLocaleTimeString([], { hour:'2-digit',minute:'2-digit' }) }
-     setActivities(previous => ({ ...previous,[id]:[...(previous[id] || []).slice(-199),activity] }))
-   }
- },[client])
- const stream=useIncidentStream(onEvent,refresh)
- const resume=useMutation({ mutationFn:(reply: Resume) => api.resume(selected!,reply),onSuccess:() => { client.setQueryData<Snapshot>(['incident',selected],old => old ? { ...old,pending_interrupt:null } : old);stream.start(selected!) } })
- const select=useCallback((id: string) => { stream.stop();selectedRef.current=id;setSelected(id);setLiveNode(null);setEvidence(null);resume.reset() },[stream,resume])
- // Keyboard listener is intentionally rebound to the latest selected incident actions.
- useEffect(() => { function key(event: KeyboardEvent) { if((event.metaKey || event.ctrlKey) && event.key.toLowerCase()==='k') { event.preventDefault();setCommandOpen(open => !open) } } window.addEventListener('keydown',key);return () => window.removeEventListener('keydown',key) },[])
- const create=useMutation({ mutationFn:async ({ body,files }: { body:{ message?: string;environment?: string;scenario_id?: string };files:File[] }) => {
-   setCreationError(null);setUploadRecovery(null)
-   const oversized=files.find(file => file.size>50*1024*1024);if(oversized) throw new Error(`${oversized.name} exceeds the 50 MiB limit.`)
-   const { incident_id:id }=await api.create(body)
-   try { for(const file of files) await api.upload(id,file) } catch(error) { setUploadRecovery(id);throw new Error(`Incident created, but upload failed: ${error instanceof Error ? error.message : 'Unknown upload error'}. Open the created incident to continue without the remaining files.`) }
-   return id
- },onSuccess:id => { select(id);setNewOpen(false);void client.invalidateQueries({ queryKey:['incidents'] });void client.fetchQuery({ queryKey:['incident',id],queryFn:() => api.snapshot(id) }).then(() => stream.start(id),error => setCreationError(error instanceof Error ? error.message : 'Could not load the incident checkpoint.')) },onError:error => setCreationError(error.message) })
- const submit=(reply: Resume) => resume.mutate(reply)
- const current=incidents.data?.find(item => item.id===selected)
- const waiting=snapshot.data?.pending_interrupt
- useEffect(() => { if(waiting && !stream.running) timelineEnd.current?.scrollIntoView({ block:'end',behavior:reduced ? 'instant' : 'smooth' }) },[waiting,stream.running,reduced])
- const activity=selected ? activities[selected] || [] : []
- const diagnosis=<DiagnosisPanel snapshot={snapshot.data} busy={resume.isPending || stream.running} submit={submit} open={setEvidence} />
- return <><div className="shell"><aside className="rail" aria-label="Incidents"><div className="rail-head"><div className="brand"><ActivityIcon />FlowMedic</div><Button className="w-full justify-between" onClick={() => setNewOpen(true)}><span className="flex-row"><Plus />New incident</span><kbd className="text-xs opacity-70">⌘K</kbd></Button></div><div className="px-5 mb-3 flex items-center justify-between"><span className="text-xs muted">Incidents {incidents.data ? `· ${incidents.data.length}` : ''}</span><button className="icon-button" aria-label="Filter incidents" onClick={() => setProblemFilter(value => value ? '' : ' ')}><ListFilter /></button></div>{problemFilter && <label className="px-4 mb-3"><span className="sr-only">Filter incidents by title</span><input className="field text-sm" autoFocus value={problemFilter.trimStart()} onChange={e => setProblemFilter(e.target.value || ' ')} placeholder="Find an incident…" /></label>}<div className="rail-list">{incidents.isPending && <p className="hint px-2">Loading incident checkpoints…</p>}{incidents.error && <div className="error text-sm">Could not load incidents.<Button variant="outline" size="sm" onClick={() => void incidents.refetch()}>Retry</Button></div>}{incidents.data?.filter(item => item.title.toLowerCase().includes(problemFilter.trim().toLowerCase())).map(item => <button key={item.id} className={`incident-row ${selected===item.id ? 'selected' : ''}`} aria-current={selected===item.id ? 'page' : undefined} onClick={() => select(item.id)}><div className="flex-row justify-between"><SeverityPill severity={item.severity} /><span className="hint">{age(item.updated_at)}</span></div><p className="line-clamp-3">{item.title}</p><div className="flex-row justify-between hint"><span>{item.environment || 'Environment pending'}</span><span>{item.stage==='closed' ? 'Closed' : humanize(item.stage)}</span></div></button>)}{incidents.data?.length===0 && <p className="hint p-2">Your incident checkpoints will appear here.</p>}</div><footer className="rail-foot"><div className="flex-row mb-2"><ShieldCheck />Read-only diagnostics</div><button className="flex-row hover:text-text" onClick={() => setCommandOpen(true)}><Search />Commands<kbd className="ml-auto">⌘K</kbd></button></footer></aside><main className="workspace"><header className="workspace-head"><div className="min-w-0"><h1>{selected ? 'Incident timeline' : 'War room'}</h1><p className="hint mt-1">{selected ? `${current?.environment || snapshot.data?.context.environment || 'Environment pending'} · ${selected.slice(0,8)}` : 'Diagnose the break. Guide the fix.'}</p></div><div className="flex-row">{selected && <Button variant="ghost" size="sm" onClick={() => setEvidence({})}><FileSearch />Evidence</Button>}<Button variant="outline" className="details-toggle" size="sm" onClick={() => setDetailsOpen(true)}><PanelRight />Details</Button></div></header><div className="timeline"><div className="timeline-content">{!selected ? <section className="empty"><ActivityIcon className="text-text-muted" /><h1>No active incident</h1><p className="muted">Start with a problem report or a demo scenario.</p><Button className="mt-6" variant="outline" onClick={() => setCommandOpen(true)}><Search />Open commands <kbd className="ml-6 text-xs muted">⌘K</kbd></Button><div className="scenarios"><p className="hint mt-5 mb-1">Demo scenarios</p>{scenarios.isPending && <p className="hint py-5">Loading scenario catalog…</p>}{scenarios.error && <div className="error my-4">Could not load scenarios. Check that the API is running.<Button variant="outline" size="sm" onClick={() => void scenarios.refetch()}>Retry</Button></div>}{scenarios.data?.slice(0,4).map(s => <button className="scenario" key={s.id} disabled={create.isPending} onClick={() => create.mutate({ body:{ scenario_id:s.id },files:[] })}><code className="text-xs muted">{s.id}</code><span className="text-sm">{s.title}</span><ArrowRight /></button>)}{(scenarios.data?.length || 0)>4 && <Button className="mt-4" variant="ghost" size="sm" onClick={() => setNewOpen(true)}>View all {scenarios.data?.length} scenarios<ArrowRight /></Button>}</div>{creationError && <p className="error mt-4">{creationError}</p>}</section> : <>{current && <section className="report"><div className="flex-row mb-3"><Terminal /><span className="hint">Engineer report</span></div><p>{current.title}</p></section>}{snapshot.isPending && <p className="muted">Loading incident checkpoint…</p>}{snapshot.error && <div className="error" role="alert">{snapshot.error.message}<Button variant="outline" onClick={() => void snapshot.refetch()}>Retry checkpoint</Button></div>}<div aria-label="Agent activity">{activity.map(row => <motion.div key={row.id} initial={{ opacity:0,y:reduced ? 0 : 8 }} animate={{ opacity:1,y:0 }} transition={{ duration:reduced ? 0 : .18,ease:'easeOut' }} className="activity">{row.event==='node_finished' ? <Check /> : row.event.startsWith('tool') ? <FileSearch /> : <GitActivity />}<div className="flex-1 min-w-0"><span>{nodeLabels[row.node] || humanize(row.node)}</span><p className="muted break-words">{row.summary}{row.target ? ` · ${row.target}` : ''}</p></div><time className="hint">{row.time}</time></motion.div>)}</div>{stream.running && <div className="activity" role="status"><motion.span className="live-dot mt-2" animate={{ opacity:reduced ? 1 : [.35,1,.35] }} transition={{ duration:2.4,repeat:reduced ? 0 : Infinity }} /><span>{liveNode ? nodeLabels[liveNode] || humanize(liveNode) : 'Connecting to incident stream'}</span></div>}{stream.error && <div className="error mt-4" role="alert">{stream.error}</div>}{resume.error && <div className="error mt-4" role="alert">{resume.error.message}</div>}{waiting && !stream.running && <ActionCard key={JSON.stringify(waiting.payload)} question={waiting.payload} busy={resume.isPending} submit={submit} stepInPanel={waiting.type==='step' && window.matchMedia('(min-width:1024px)').matches} />}{snapshot.data && !waiting && !stream.running && snapshot.data.stage!=='closed' && <section className="action-card"><h2>Ready to continue</h2><p className="muted mb-4">Start the event stream from this checkpoint.</p><Button onClick={() => stream.start(selected)}><Radio />{stream.error ? 'Retry from checkpoint' : 'Continue incident'}</Button></section>}{snapshot.data?.stage==='closed' && !waiting && !stream.running && <section className="action-card"><div className="flex-row mb-2"><Check className="text-accent" /><h2>Incident workflow complete</h2></div><p className="muted">Review the final assessment and recorded steps in the details panel.</p></section>}{!activity.length && waiting && <p className="hint mt-6">Checkpoint restored. Activity rows from earlier browser sessions are not stored by the API.</p>}</>}<div ref={timelineEnd} /></div></div><footer className="px-6 py-3 border-t border-border flex-row hint"><ShieldCheck />The engineer runs every command.<button className="ml-auto icon-button" aria-label="Open command menu" onClick={() => setCommandOpen(true)}><CircleHelp /></button></footer></main><aside className="inspector" aria-label="Diagnosis and resolution plan">{diagnosis}</aside></div><NewIncident open={newOpen} close={() => setNewOpen(false)} scenarios={scenarios.data || []} busy={create.isPending} error={creationError} create={(body,files) => create.mutate({ body,files })} />{uploadRecovery && <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-surface border border-warning rounded-sm p-4"><Button variant="outline" onClick={() => { select(uploadRecovery);setNewOpen(false);setUploadRecovery(null) }}>Open created incident</Button></div>}<CommandDialog open={commandOpen} onOpenChange={setCommandOpen} title="Commands" description="Create an incident, load a demo or open knowledge."><CommandInput placeholder="Search commands, scenarios or a knowledge ID…" value={knowledgeSearch} onValueChange={setKnowledgeSearch} /><CommandList><CommandEmpty>No matching commands.</CommandEmpty><CommandGroup heading="Incident"><CommandItem onSelect={() => { setCommandOpen(false);setNewOpen(true) }}><Plus />New incident</CommandItem><CommandItem onSelect={() => { setCommandOpen(false);setEvidence({ doc:'INC-003' }) }}><FileSearch />Open knowledge doc INC-003</CommandItem></CommandGroup>{/^(INC|RB)-[A-Z0-9-]+$/i.test(knowledgeSearch.trim()) && <CommandGroup heading="Knowledge"><CommandItem value={knowledgeSearch} onSelect={() => { setCommandOpen(false);setEvidence({ doc:knowledgeSearch.trim().toUpperCase() }) }}><FileSearch />Open {knowledgeSearch.trim().toUpperCase()}</CommandItem></CommandGroup>}<CommandGroup heading="Load scenario">{scenarios.data?.map(s => <CommandItem key={s.id} value={`${s.id} ${s.title}`} onSelect={() => { setCommandOpen(false);create.mutate({ body:{ scenario_id:s.id },files:[] }) }}><Terminal /><span>{s.id} · {s.title}</span></CommandItem>)}</CommandGroup></CommandList></CommandDialog><Dialog open={detailsOpen} onOpenChange={setDetailsOpen}><DialogContent className="drawer translate-x-0 translate-y-0 left-auto top-0 p-0 max-w-none"><DialogTitle className="sr-only">Incident details</DialogTitle><DialogDescription className="sr-only">Triage, topology and the resolution plan</DialogDescription>{diagnosis}</DialogContent></Dialog><EvidenceDrawer target={evidence} snapshot={snapshot.data} close={() => setEvidence(null)} /></>
+  const client = useQueryClient()
+  const [selected, setSelected] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem('flowmedic.selected')
+    } catch {
+      return null
+    }
+
+  })
+
+  const selectedRef = useRef<string | null>(selected)
+  const [newOpen, setNewOpen] = useState(false), [commandOpen, setCommandOpen] = useState(false), [detailsOpen, setDetailsOpen] = useState(false)
+  const [page, setPage] = useState('War room')
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [stories, setStories] = useState<Record<string, Milestone[]>>({})
+  const [tabChoice, setTabChoice] = useState<{
+    id: string | null
+    signature: string
+    tab: InspectorTab
+  } | null>(null)
+
+  const remember = useCallback((id: string, milestone: Milestone) => {
+    setStories(previous => {
+      const rows = [...(previous[id] || readStory(id)).filter(row => row.id !== milestone.id), milestone]
+      writeStory(id, rows)
+      return { ...previous, [id]: rows }
+    })
+
+  }, [])
+
+  const [knowledgeSearch, setKnowledgeSearch] = useState('')
+  const [evidence, setEvidence] = useState<EvidenceTarget | null>(null)
+  const [activities, setActivities] = useState<Record<string, Activity[]>>({})
+  const [liveNode, setLiveNode] = useState<string | null>(null)
+  const [problemFilter, setProblemFilter] = useState('')
+  const [creationError, setCreationError] = useState<string | null>(null)
+  const [uploadRecovery, setUploadRecovery] = useState<string | null>(null)
+  const activityId = useRef(0)
+  const scenarios = useQuery({ queryKey: ['scenarios'], queryFn: api.scenarios })
+  const incidents = useQuery({ queryKey: ['incidents'], queryFn: api.incidents })
+  const snapshot = useQuery({
+    queryKey: ['incident', selected],
+    queryFn: () => api.snapshot(selected!),
+    enabled: !!selected
+  })
+
+  const refresh = useCallback(() => {
+    setLiveNode(null)
+    void client.invalidateQueries({ queryKey: ['incident', selectedRef.current] })
+    void client.invalidateQueries({ queryKey: ['incidents'] })
+    void client.invalidateQueries({ queryKey: ['topology'] })
+  }, [client])
+
+  const onEvent: EventHandler = useCallback((name, data) => {
+    const id = selectedRef.current
+    if (!id) return
+    if (name === 'triage_result') client.setQueryData<Snapshot>(['incident', id], old => old ? { ...old, triage_result: data as TriageResult } : old)
+    if (name === 'plan_updated') {
+      const old = client.getQueryData<Snapshot>(['incident', id])
+      const plan = data as Plan
+      if (old?.plan && planSignature(old) !== planSignature({ ...old, plan })) {
+        remember(id, {
+          id: `revision-${Date.now()}-${++activityId.current}`,
+          stage: 'Fix',
+          title: 'Plan revised after new evidence',
+          detail: old.triage_result?.root_causes[0] ? plainLabel(old.triage_result.root_causes[0].id) : undefined
+        })
+
+      }
+
+      client.setQueryData<Snapshot>(['incident', id], previous => previous ? {
+        ...previous,
+        plan,
+        stage: 'planner'
+      } : previous)
+
+      setTabChoice({
+        id,
+        signature: planSignature(old ? { ...old, plan } : undefined),
+        tab: 'Plan'
+      })
+
+    }
+
+    if (name === 'interrupt') {
+      setSent(false)
+      const question = data as Question
+      client.setQueryData<Snapshot>(['incident', id], old => old ? { ...old, pending_interrupt: { type: questionType(question), payload: question } } : old)
+      setLiveNode(null)
+    }
+
+    if (name === 'node_started' || name === 'node_finished' || name === 'tool_called' || name === 'tool_result') {
+      const row = data as {
+        node?: string
+        tool?: string
+        summary?: string
+        target?: string
+      }
+
+      const node = row.node || row.tool || 'Agent activity'
+      if (name === 'node_started') setLiveNode(node)
+      if (name === 'node_finished') setLiveNode(current => current === node ? null : current)
+      const activity: Activity = {
+        id: ++activityId.current,
+        event: name,
+        node,
+        summary: row.summary || plainLabel(node),
+        target: row.target,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+
+      setActivities(previous => ({ ...previous, [id]: [...(previous[id] || []).slice(-199), activity] }))
+    }
+
+  }, [client, remember])
+
+  const stream = useIncidentStream(onEvent, refresh)
+  const resume = useMutation({
+    mutationFn: (reply: Resume) => api.resume(selected!, reply), onSuccess: (_, reply) => {
+      const id = selectedRef.current!
+      const state = client.getQueryData<Snapshot>(['incident', id])
+      const question = state?.pending_interrupt?.payload
+      if (reply.kind === 'approve_logs' && typeof reply.payload === 'object' && reply.payload.approved && question && 'kind' in question && question.kind === 'log_access') {
+        const window = reply.payload.window as { start_time: string | null; end_time: string | null }
+        remember(id, {
+          id: 'logs-approved',
+          stage: 'Logs',
+          title: `Log access approved (${question.folder}, ${window.start_time || 'start of export'} – ${window.end_time || 'end of export'})`
+        })
+
+      }
+
+      if (reply.kind === 'step_result' && question && 'type' in question && question.type === 'step' && typeof reply.payload === 'object') {
+        remember(id, {
+          id: `step-${question.n}-${question.command_or_action}`,
+          stage: 'Fix',
+          title: `Step ${question.n} ${reply.payload.status}: ${question.title}`,
+          detail: String(reply.payload.output || '').replace(/\s+/g, ' ').slice(0, 180)
+        })
+
+      }
+
+      if (question && 'type' in question && question.type === 'approve_save') remember(id, {
+        id: 'outcome',
+        stage: 'Close',
+        title: '',
+        detail: question.outcome
+      })
+
+      setSent(reply.kind === 'step_result')
+      client.setQueryData<Snapshot>(['incident', selected], old => old ? { ...old, pending_interrupt: null } : old)
+      stream.start(selected!)
+    }
+  })
+
+  const select = useCallback((id: string) => {
+    stream.stop()
+    selectedRef.current = id
+    setSelected(id)
+    try {
+      sessionStorage.setItem('flowmedic.selected', id)
+    } catch { /* Selection still works without storage. */ }
+
+    setPage('War room')
+    setSent(false)
+    setLiveNode(null)
+    setEvidence(null)
+    resume.reset()
+  }, [stream, resume])
+
+  // Keyboard listener is intentionally rebound to the latest selected incident actions.
+  useEffect(() => {
+    function key(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandOpen(open => !open)
+      }
+    }
+
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  }, [])
+
+  const create = useMutation({
+    mutationFn: async ({ body, files }: {
+      body: {
+        message?: string
+        environment?: string
+        scenario_id?: string
+      }; files: File[]
+    }) => {
+      setCreationError(null)
+      setUploadRecovery(null)
+      const oversized = files.find(file => file.size > 50 * 1024 * 1024)
+      if (oversized) throw new Error(`${oversized.name} exceeds the 50 MiB limit.`)
+      const { incident_id: id } = await api.create(body)
+      try {
+        for (const file of files) await api.upload(id, file)
+      } catch (error) {
+        setUploadRecovery(id)
+        throw new Error(`Incident created, but upload failed: ${error instanceof Error ? error.message : 'Unknown upload error'}. Open the created incident to continue without the remaining files.`)
+      }
+
+      return id
+    },
+    onSuccess: id => {
+      select(id)
+      setNewOpen(false)
+      void client.invalidateQueries({ queryKey: ['incidents'] })
+      void client.fetchQuery({ queryKey: ['incident', id], queryFn: () => api.snapshot(id) }).then(() => stream.start(id), error => setCreationError(error instanceof Error ? error.message : 'Could not load the incident checkpoint.'))
+    },
+    onError: error => setCreationError(error.message)
+  })
+
+  const submit = (reply: Resume) => resume.mutate(reply)
+  const current = incidents.data?.find(item => item.id === selected)
+  const activity = selected ? activities[selected] || [] : []
+  const remembered = selected ? stories[selected] || readStory(selected) : []
+  const signature = planSignature(snapshot.data)
+  const tab = tabChoice?.id === selected && tabChoice.signature === signature ? tabChoice.tab : snapshot.data?.plan ? 'Plan' : 'Diagnosis'
+  const diagnosis = <InspectorTabs
+    snapshot={snapshot.data}
+    open={setEvidence}
+    tab={tab}
+    onTabChange={tab => setTabChoice({
+      id: selected,
+      signature,
+      tab
+    })}
+    revised={remembered.some(row => row.id.startsWith('revision-'))} />
+  return <>
+    <AppShell pageTitle={page} onHelp={() => setHelpOpen(true)}>
+      <LeftRail
+        incidents={incidents}
+        selected={selected}
+        select={select}
+        snapshot={snapshot.data}
+        page={page}
+        setPage={setPage}
+        problemFilter={problemFilter}
+        setProblemFilter={setProblemFilter}
+        setNewOpen={setNewOpen}
+        setCommandOpen={setCommandOpen} />
+      <main className="workspace">
+        {page !== 'War room' ? (
+          <section className="panel-body">
+            <h1>{page}</h1>
+            <p className="muted mt-3">Coming in the next step</p>
+          </section>
+        ) : <>
+          <header className="workspace-head">
+            <div className="min-w-0">
+              <h1>{selected ? 'Incident war room' : 'War room'}</h1>
+              <p className="hint mt-1">{selected ? `${current?.environment || snapshot.data?.context.environment || 'Environment pending'} · ${selected.slice(0, 8)}` : 'Diagnose the break. Guide the fix.'}</p>
+            </div>
+            <Button
+              variant="outline"
+              className="details-toggle"
+              size="sm"
+              onClick={() => setDetailsOpen(true)}>
+              <PanelRight />Details</Button>
+          </header>
+          {selected && <StageTracker
+            snapshot={snapshot.data}
+            liveNode={liveNode}
+            activity={activity} />
+          }
+          <div className="timeline">
+            <div className="timeline-content">
+              {!selected ? (
+                <section className="empty">
+                  <ActivityIcon className="text-text-muted" />
+                  <h1>No active incident</h1>
+                  <p className="muted">Start with a problem report or a demo scenario.</p>
+                  <Button
+                    className="mt-6"
+                    variant="outline"
+                    onClick={() => setCommandOpen(true)}>
+                    <Search />Open commands <kbd className="ml-6 text-xs muted">⌘K</kbd>
+                  </Button>
+                  <HowItWorks />
+                  <div className="scenarios">
+                    <p className="hint mt-5 mb-1">Demo scenarios</p>
+                    {scenarios.isPending && <p className="hint py-5">Loading scenario catalog…</p>
+                    }
+                    {scenarios.error && <div className="error my-4">Could not load scenarios. Check that the API is running.<Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void scenarios.refetch()}>Retry</Button>
+                    </div>
+                    }
+                    {scenarios.data?.slice(0, 4).map(s => (
+                      <button
+                        className="scenario"
+                        key={s.id}
+                        disabled={create.isPending}
+                        onClick={() => create.mutate({ body: { scenario_id: s.id }, files: [] })}>
+                        <code className="text-xs muted">{s.id}</code>
+                        <span className="text-sm">{s.title}</span>
+                        <ArrowRight />
+                      </button>
+                    ))}
+                    {(scenarios.data?.length || 0) > 4 && <Button
+                      className="mt-4"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setNewOpen(true)}>View all {scenarios.data?.length} scenarios<ArrowRight />
+                    </Button>
+                    }
+                  </div>
+                  {creationError && <p className="error mt-4">{creationError}</p>
+                  }
+                </section>
+              ) : <>
+                {snapshot.isPending && <p className="muted">Loading incident checkpoint…</p>
+                }
+                {snapshot.error && <div className="error" role="alert">{snapshot.error.message}<Button variant="outline" onClick={() => void snapshot.refetch()}>Retry checkpoint</Button>
+                </div>
+                }
+                {snapshot.data && <StoryTimeline
+                  snapshot={snapshot.data}
+                  report={current?.title}
+                  activity={activity}
+                  remembered={remembered} />
+                }
+                {stream.error && <div className="error mt-4" role="alert">{stream.error}</div>
+                }
+                {resume.error && <div className="error mt-4" role="alert">{resume.error.message}</div>
+                }
+              </>
+              }
+            </div>
+          </div>
+          {selected && snapshot.data && <YourTurnCard
+            snapshot={snapshot.data}
+            liveNode={liveNode}
+            busy={resume.isPending || stream.running}
+            running={stream.running}
+            sent={sent && snapshot.data.stage !== 'closed'}
+            submit={submit}
+            continueIncident={() => stream.start(selected)} />
+          }
+          <footer className="px-6 py-3 border-t border-border flex-row hint">
+            <ShieldCheck />The engineer runs every command.</footer>
+        </>
+        }
+      </main>
+      <aside className="inspector" aria-label="Incident reference">{page === 'War room' && diagnosis}</aside>
+    </AppShell>
+    <NewIncident
+      open={newOpen}
+      close={() => setNewOpen(false)}
+      scenarios={scenarios.data || []}
+      busy={create.isPending}
+      error={creationError}
+      create={(body, files) => create.mutate({ body, files })} />{uploadRecovery && <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 bg-surface border border-warning rounded-sm p-4">
+        <Button variant="outline" onClick={() => {
+          select(uploadRecovery)
+          setNewOpen(false)
+          setUploadRecovery(null)
+        }}>Open created incident</Button>
+      </div>
+    }<CommandDialog
+      open={commandOpen}
+      onOpenChange={setCommandOpen}
+      title="Commands"
+      description="Create an incident, load a demo or open knowledge.">
+      <CommandInput
+        placeholder="Search commands, scenarios or a knowledge ID…"
+        value={knowledgeSearch}
+        onValueChange={setKnowledgeSearch} />
+      <CommandList>
+        <CommandEmpty>No matching commands.</CommandEmpty>
+        <CommandGroup heading="Incident">
+          <CommandItem onSelect={() => {
+            setCommandOpen(false)
+            setNewOpen(true)
+          }}>
+            <Plus />New incident</CommandItem>
+          <CommandItem onSelect={() => {
+            setCommandOpen(false)
+            setEvidence({ doc: 'INC-003' })
+          }}>
+            <FileSearch />Open knowledge doc INC-003</CommandItem>
+        </CommandGroup>{/^(INC|RB)-[A-Z0-9-]+$/i.test(knowledgeSearch.trim()) && <CommandGroup heading="Knowledge">
+          <CommandItem value={knowledgeSearch} onSelect={() => {
+            setCommandOpen(false)
+            setEvidence({ doc: knowledgeSearch.trim().toUpperCase() })
+          }}>
+            <FileSearch />Open {knowledgeSearch.trim().toUpperCase()}</CommandItem>
+        </CommandGroup>
+        }<CommandGroup heading="Load scenario">{scenarios.data?.map(s => <CommandItem
+          key={s.id}
+          value={`${s.id} ${s.title}`}
+          onSelect={() => {
+            setCommandOpen(false)
+            create.mutate({ body: { scenario_id: s.id }, files: [] })
+          }}>
+          <Terminal />
+          <span>{s.id} · {s.title}</span>
+        </CommandItem>)}</CommandGroup>
+      </CommandList>
+    </CommandDialog>
+    <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <DialogContent className="drawer translate-x-0 translate-y-0 left-auto top-0 p-0 max-w-none">
+        <DialogTitle className="sr-only">Incident details</DialogTitle>
+        <DialogDescription className="sr-only">Triage, topology and the resolution plan</DialogDescription>{diagnosis}</DialogContent>
+    </Dialog>
+    <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+      <DialogContent>
+        <DialogTitle className="sr-only">How FlowMedic works</DialogTitle>
+        <DialogDescription className="sr-only">The four steps from report to recorded resolution.</DialogDescription>
+        <HowItWorks />
+      </DialogContent>
+    </Dialog>
+    <EvidenceDrawer
+      target={evidence}
+      snapshot={snapshot.data}
+      close={() => setEvidence(null)} />
+  </>
 }
-function GitActivity() { return <ActivityIcon /> }

@@ -439,3 +439,68 @@ budget.
 Next: manually walk through SC-001 with the running API and review actual model
 outputs, reconnect behavior and evidence references before considering Step 5b
 fully validated in the live environment.
+
+## Step 5c-1: guided flow
+
+Built the DESIGN.md guided war-room layout without backend or model changes.
+First extracted the shell, rail, action and reference regions and formatted the
+existing components without changing their behavior; build and lint passed before
+implementing the guided behavior. The final regions are AppShell, LeftRail,
+StageTracker, StoryTimeline, YourTurnCard and InspectorTabs with DiagnosisTab,
+PlanTab, TopologyTab and EvidenceTab. Existing API client and SSE hook are retained.
+
+- Added pure stage/progress/status derivation in `app/web/src/lib/stage.ts`, with
+  Report → Logs → Diagnose → Fix → Close, agent names, plain activity labels,
+  preserved acronyms and explanatory stage tooltips. Incident rows use checkpoint
+  queries to show waiting, fixing/progress and closed states accurately.
+- All clarification, log approval, step output and save controls now live in the
+  pinned centre Your turn region at desktop and laptop widths. Commands include
+  copy feedback, location, expected output, risk/rollback and the existing change
+  confirmation. Sent step results show a review status until the next interrupt.
+- The story groups report, approval, diagnosis, hand-off, completed steps,
+  re-plans and closure by stage. Technical activity is collapsed by default;
+  node start/finish pairs become one row, while tool events stay separate.
+- Reference-only inspector tabs have descriptions and helpful empty states.
+  Plan opens at hand-off and re-plan; active-step scrolling stays inside the
+  inspector and respects reduced motion. Re-plans have a banner.
+- Added War room / Setup / Knowledge navigation, next-step placeholders, the
+  four-step introduction above demos and an app-bar help dialog.
+- Selected incident and missing story details survive refresh in sessionStorage;
+  diagnosis, plan statuses and closure still derive from API snapshots. Updated
+  the existing fake-API Playwright spec for the new layout and refresh behavior.
+
+Verified offline:
+
+- `npm --prefix app/web run build`: PASS (TypeScript and Vite); existing non-fatal
+  large-chunk advisory remains, approximately 526 kB uncompressed.
+- `npm --prefix app/web run lint`: PASS.
+- `npx impeccable detect app/web/src`: exit 2, only `overused-font` for Geist.
+  Retained because DESIGN.md mandates Geist. Used the cached CLI with offline npm;
+  the source-only detector does not check rendered contrast.
+- Playwright: 5 PASS in one final suite run against the fake HTTP/SSE API. Covers
+  exact approval/result payloads, confirmation gating, controls only in Your turn,
+  automatic Plan selection, refresh recovery, evidence masking, re-planning,
+  placeholders/help, reduced-motion laptop drawer, keyboard use and API recovery.
+- `uv run pytest -q -m "not live"`: 124 PASS, 4 deselected.
+- Inspected screenshots captured by that spec for desktop empty/plan and laptop
+  drawer states; corrected the introduction's decimal list style after Tailwind's
+  reset suppressed its markers. Final build/lint also cover this CSS correction.
+  No exploratory browser sessions or live provider calls. Vite was started once
+  for the spec and stopped after verification.
+
+Run locally with the existing API and `npm --prefix app/web run dev`. Offline
+browser verification uses that Vite server plus
+`cd app/web && npx --offline playwright test`; all API requests in the spec are
+intercepted by its fake API.
+
+Deferred / limits: Step 5d visual polish and Step 5c-2 Setup/Knowledge pages.
+The existing snapshot API omits approved folders/windows, engineer result text,
+prior plan versions, revision reasons and final outcome. Those observed details
+are retained only for the current browser session (including refresh); a fresh
+browser session restores the facts present in the checkpoint and does not invent
+missing approvals or an outcome. Revision context uses the current root cause
+when available. Technical activity from earlier browser sessions remains
+unavailable. No backend features were added to fill these gaps. Windows runtime
+and live-model integration were not exercised in this offline step.
+
+Next: Step 5c-2, read-only Setup and Knowledge pages; then Step 5d visual polish.
