@@ -42,13 +42,13 @@ export function SetupPage({ onKnowledge }: { onKnowledge: () => void }) {
     <div className="config-grid">{platforms.data?.map(p => <article className="config-card" key={p.id}>
       <h3>{p.name}</h3>
       <code className="source-chip">{p.source_file}</code>
-      <p>Versions: {p.versions.join(', ') || 'Not specified'}</p>
-      <p>Operating systems: {p.os.join(', ') || 'Not specified'}</p>
+      <p className="config-metadata">Versions: {p.versions.join(', ') || 'Not specified'}</p>
+      <p className="config-metadata">Operating systems: {p.os.join(', ') || 'Not specified'}</p>
       <p className="hint">Default environment: {p.default_environment || 'None'}</p>
       <h4>Questions the agent asks</h4>
       {!p.clarify_slots.required.length && !p.clarify_slots.optional.length && <p className="hint">No platform-specific questions configured.</p>
       }
-      {(['required', 'optional'] as const).map(kind => p.clarify_slots[kind].map(slot => <p key={`${kind}-${slot}`}>{slotQuestions[slot] || humanize(slot)} <span className="hint">({kind})</span>
+      {(['required', 'optional'] as const).map(kind => p.clarify_slots[kind].map(slot => <p className="config-question" key={`${kind}-${slot}`}>{slotQuestions[slot] || humanize(slot)} <span className="hint">({kind})</span>
       </p>))}
       <h4>Components and logs</h4>
       {p.components.map(c => <div className="config-component" key={c.type}>

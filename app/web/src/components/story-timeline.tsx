@@ -39,7 +39,7 @@ export function StoryTimeline({ snapshot, report, activity, remembered }: {
         }
         {runs.map(row => (
           <div key={row.id} className="activity">
-            {row.event.startsWith('tool') ? <FileSearch /> : row.event === 'node_finished' ? <Check /> : <Pulse className="activity-pulse" />
+            {row.event.startsWith('tool') ? <FileSearch /> : row.event === 'node_finished' ? <Check /> : <Pulse />
             }
             <div className="min-w-0 flex-1">
               <span>{plainLabel(row.node)}</span>

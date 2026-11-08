@@ -1,5 +1,5 @@
 import { confidenceHint, displayPath, trustHints, uniqueNotes } from '@/lib/display'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Check, Copy, ExternalLink, GitBranch, ArrowUpRight, ShieldCheck } from 'lucide-react'
@@ -8,8 +8,6 @@ import { humanize } from '@/lib/contracts'
 import type { PlanStep, Snapshot, TriageResult, TopologyNode } from '@/lib/contracts'
 import type { EvidenceTarget } from './evidence-drawer'
 import { Button } from './ui/button'
-import { NumberTicker } from './ui/number-ticker'
-import { AnimatedBeam } from './ui/animated-beam'
 export function SeverityPill({ severity }: { severity: string | null }) {
   return <span title={severity ? ({ P1: 'Critical outage; immediate attention required.', P2: 'Major impact; urgent investigation required.', P3: 'Limited impact; investigate with normal priority.', P4: 'Low impact; address during planned work.' }[severity]) : 'The Triage agent is assessing severity.'} className={`badge severity-${severity || 'P4'}`}>
     <span className="size-1 rounded-full bg-current" />{severity || 'Triaging'}</span>
@@ -36,7 +34,6 @@ export function TriageCard({ result, compact, open, displayRoot }: {
   compact: boolean
   open: (target: EvidenceTarget) => void
 }) {
-  const reduced = useReducedMotion()
   const route = {
     known_fix: 'Known fix',
     similar: 'Similar',
@@ -44,16 +41,7 @@ export function TriageCard({ result, compact, open, displayRoot }: {
     clarify: 'Clarify'
   }[result.route]
 
-  return <motion.section
-    layoutId="triage-summary"
-    layout
-    transition={{
-      type: 'spring',
-      stiffness: 380,
-      damping: 32,
-      duration: reduced ? 0 : undefined
-    }}
-    className="triage">
+  return <section className="triage">
     <div className="flex-row">
       <SeverityPill severity={result.severity} />
       <CategoryTag category={result.category} />
@@ -62,8 +50,7 @@ export function TriageCard({ result, compact, open, displayRoot }: {
     <h2>{compact ? 'Diagnosis handed to planner' : 'Triage assessment'}</h2>{!compact && <>
       <div className="flex-row justify-between text-sm">
         <span className="muted" title={confidenceHint}>Assessment confidence</span>
-        <span>{reduced ? Math.round(result.confidence * 100) : <NumberTicker value={Math.round(result.confidence * 100)} />
-        }%</span>
+        <span>{Math.round(result.confidence * 100)}%</span>
       </div>{result.root_causes.map(cause => <div className="cause" key={cause.id}>
         <div className="flex items-start justify-between gap-3 text-sm">
           <span>{humanize(cause.id)}</span>
@@ -77,10 +64,7 @@ export function TriageCard({ result, compact, open, displayRoot }: {
           aria-valuenow={Math.round(cause.confidence * 100)}
           aria-valuemin={0}
           aria-valuemax={100}>
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${cause.confidence * 100}%` }}
-            transition={{ duration: reduced ? 0 : .2 }} />
+          <div style={{ width: `${cause.confidence * 100}%` }} />
         </div>
         <div className="flex-row">{cause.evidence_refs.map(ref => {
           const match = ref.match(/^(.*?)(?::|#L)(\d+)$/)
@@ -106,7 +90,7 @@ export function TriageCard({ result, compact, open, displayRoot }: {
       </div>
       }{result.notes && <p className="hint mt-4">{uniqueNotes(result.notes)}</p>
       }</>
-    }</motion.section>
+    }</section>
 
 }
 function layer(node: TopologyNode) {
@@ -125,7 +109,6 @@ export function TopologyMap({ snapshot }: { snapshot: Snapshot }) {
   })
 
   const reduced = useReducedMotion()
-  const container = useRef<HTMLDivElement>(null), from = useRef<HTMLDivElement>(null), to = useRef<HTMLDivElement>(null)
   if (!env) return <p className="panel-body muted text-sm">Select an environment to see its reviewed topology.</p>
   if (query.isPending) return <p className="panel-body muted text-sm">Loading reviewed topology…</p>
   if (query.error) return <div className="panel-body">
@@ -145,14 +128,11 @@ export function TopologyMap({ snapshot }: { snapshot: Snapshot }) {
     }]
   }))
 
-  const current = snapshot.pending_interrupt?.type === 'step' ? (snapshot.pending_interrupt.payload as PlanStep).where : nodes.find(n => n.status === 'check_next')?.id
-  const edge = query.data!.edges.find(e => e.to === current) || query.data!.edges.find(e => e.from === current)
-  const a = edge && coords.get(edge.from), b = edge && coords.get(edge.to)
   return <section className="panel-body border-t border-border">
     <h2 className="section-title flex-row">
       <GitBranch />Environment topology</h2>
     <p className="hint mb-4">{env} · reviewed dependency map</p>
-    <div ref={container} className="relative">
+    <div>
       <svg
         className="topology"
         viewBox="0 0 396 350"
@@ -195,27 +175,7 @@ export function TopologyMap({ snapshot }: { snapshot: Snapshot }) {
               textAnchor="middle"
               style={{ fontSize: 11 }}>{node.id}</text>
           </motion.g>
-        })}</svg>{a && b && !reduced && <>
-          <div
-            ref={from}
-            className="absolute size-px pointer-events-none"
-            style={{ left: `${(a.x + a.w / 2) / 396 * 100}%`, top: `${(a.y + 32) / 350 * 100}%` }} />
-          <div
-            ref={to}
-            className="absolute size-px pointer-events-none"
-            style={{ left: `${(b.x + b.w / 2) / 396 * 100}%`, top: `${b.y / 350 * 100}%` }} />
-          <AnimatedBeam
-            key={current}
-            containerRef={container}
-            fromRef={from}
-            toRef={to}
-            repeat={0}
-            duration={1.2}
-            pathColor="var(--border-strong)"
-            gradientStartColor="var(--accent)"
-            gradientStopColor="var(--accent)" />
-        </>
-      }</div>
+        })}</svg></div>
     <div className="flex-row text-xs mt-3">
       <span className="text-accent">Affected / checked</span>
       <span className="text-warning">Check next</span>

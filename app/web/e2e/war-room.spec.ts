@@ -388,3 +388,40 @@ test('first visit opens help once and the help button always reopens it', async 
   await expect(first.getByRole('dialog')).toBeVisible()
   await context.close()
 })
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`first hand-off advances to Fix and opens Plan (${reducedMotion})`, async ({ page }) => {
+    await fakeApi(page)
+    await page.emulateMedia({ reducedMotion })
+    await page.goto('/')
+    await page.evaluate(() => {
+      // Record short-lived beams so assertions do not depend on animation timing.
+      const seen = document.createElement('output')
+      seen.id = 'handoff-count'
+      seen.hidden = true
+      seen.textContent = '0'
+      document.body.append(seen)
+      new MutationObserver(records => {
+        for (const record of records) for (const node of record.addedNodes) {
+          if (node instanceof Element && node.matches('.handoff-beam')) {
+            seen.textContent = String(Number(seen.textContent) + 1)
+          }
+        }
+      }).observe(document.body, { childList: true, subtree: true })
+    })
+    await page.getByRole('button', { name: /SC-001 Integration/ }).click()
+    await page.getByRole('button', { name: '10.15', exact: true }).click()
+    await page.getByRole('button', { name: 'Continue', exact: true }).click()
+    await page.getByRole('button', { name: 'Approve access' }).click()
+    await expect(page.locator('.stage-tracker [aria-current="step"]')).toHaveText('Fix')
+    await expect(page.getByRole('tab', { name: 'Plan', exact: true })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.locator('#handoff-count')).toHaveText(reducedMotion === 'reduce' ? '0' : '1')
+    await expect(page.locator('.handoff-beam')).toHaveCount(0)
+    await page.getByRole('tab', { name: 'Diagnosis', exact: true }).click()
+    await page.getByRole('tab', { name: 'Plan', exact: true }).click()
+    await expect(page.locator('#handoff-count')).toHaveText(reducedMotion === 'reduce' ? '0' : '1')
+    await page.reload()
+    await expect(page.locator('.stage-tracker [aria-current="step"]')).toHaveText('Fix')
+    await expect(page.locator('.handoff-beam')).toHaveCount(0)
+  })
+}

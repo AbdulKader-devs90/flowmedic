@@ -39,6 +39,12 @@ export default function App() {
     try { localStorage.setItem('flowmedic.help.seen', 'true') } catch { /* Help remains available without storage. */ }
   }, [])
   const [sent, setSent] = useState(false)
+  const [handoff, setHandoff] = useState<string | null>(null)
+  useEffect(() => {
+    if (!handoff) return
+    const timeout = window.setTimeout(() => setHandoff(null), 800)
+    return () => window.clearTimeout(timeout)
+  }, [handoff])
   const [stories, setStories] = useState<Record<string, Milestone[]>>({})
   const [tabChoice, setTabChoice] = useState<{
     id: string | null
@@ -81,7 +87,16 @@ export default function App() {
   const onEvent: EventHandler = useCallback((name, data) => {
     const id = selectedRef.current
     if (!id) return
-    if (name === 'triage_result') client.setQueryData<Snapshot>(['incident', id], old => old ? { ...old, triage_result: data as TriageResult } : old)
+    if (name === 'triage_result') {
+      const old = client.getQueryData<Snapshot>(['incident', id])
+      // Only the first live hand-off earns motion; restored checkpoints and
+      // re-assessments must not replay the transfer.
+      if (old && !old.triage_result && !old.plan) {
+        setHandoff(id)
+        setTabChoice({ id, signature: planSignature(old), tab: 'Plan' })
+      }
+      client.setQueryData<Snapshot>(['incident', id], previous => previous ? { ...previous, triage_result: data as TriageResult } : previous)
+    }
     if (name === 'plan_updated') {
       const old = client.getQueryData<Snapshot>(['incident', id])
       const plan = data as Plan
@@ -184,6 +199,7 @@ export default function App() {
     stream.stop()
     selectedRef.current = id
     setSelected(id)
+    setHandoff(null)
     if (push) {
       const url = new URL(window.location.href)
       if (id) url.searchParams.set('incident', id)
@@ -299,6 +315,7 @@ export default function App() {
               <PanelRight />Details</Button>
           </header>
           {selected && <StageTracker
+            handoff={handoff === selected}
             snapshot={snapshot.data}
             liveNode={liveNode}
             activity={activity}

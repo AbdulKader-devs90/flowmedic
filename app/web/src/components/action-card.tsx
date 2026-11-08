@@ -13,7 +13,7 @@ export function StepResultForm({ step, busy, submit }: {
 }) {
   const [output, setOutput] = useState('')
   const [confirmed, setConfirmed] = useState(false)
-  return <div className="mt-4 space-y-4">
+  return <div className="step-result-form">
     <label className="label">Paste output<textarea
       className="field mt-2 mono"
       value={output}
@@ -76,7 +76,7 @@ export function ActionCard({ question, busy, submit, total = 1, displayRoot }: {
   const [end, setEnd] = useState('')
   const kind = questionType(question)
   if ('type' in question && question.type === 'step') return <section className="action-card" aria-label="Step result requested">
-    <div className="flex-row mb-3">
+    <div className="flex-row action-heading">
       <FileText />
       <h2>Your turn: run step {question.n} of {total} and report the result</h2>
     </div>
@@ -89,7 +89,7 @@ export function ActionCard({ question, busy, submit, total = 1, displayRoot }: {
       submit={submit} />
   </section>
   if ('type' in question && question.type === 'approve_save') return <section className="action-card">
-    <div className="flex-row mb-3">
+    <div className="flex-row action-heading">
       <ShieldCheck />
       <h2>{question.outcome === 'escalate' && !(question.record.steps_worked as unknown[] | undefined)?.length ? 'Save an escalation note?' : 'Your turn: save this incident to the knowledge base?'}</h2>
     </div>
@@ -107,7 +107,7 @@ export function ActionCard({ question, busy, submit, total = 1, displayRoot }: {
     </div>
   </section>
   if ('kind' in question && question.kind === 'log_access') return <section className="action-card">
-    <div className="flex-row mb-3">
+    <div className="flex-row action-heading">
       <FolderOpen />
       <h2>Your turn: approve read-only log access</h2>
     </div>
@@ -144,7 +144,7 @@ export function ActionCard({ question, busy, submit, total = 1, displayRoot }: {
   </section>
   if (!('kind' in question) || !('slots' in question)) return null
   return <section className="action-card">
-    <div className="flex-row mb-3">
+    <div className="flex-row action-heading">
       <MessageSquare />
       <h2>Your turn: answer one question</h2>
     </div>

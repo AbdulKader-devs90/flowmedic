@@ -569,3 +569,77 @@ is in `tests/test_api.py` and `tests/test_log_discovery.py`.
 Next: Step 5d visual polish. Live providers and Windows runtime were not exercised.
 Approval stories, prior plan versions and result excerpts remain browser-session
 history; the new approval boolean restores skipped-stage accuracy from checkpoints.
+
+## Step 5d: polish
+
+Offline visual polish, preserving the existing page composition, content, input
+controls and incident workflow. Reviewed empty, Diagnose, Fix with Your turn,
+and Setup against current source and rendered synthetic fixtures.
+
+Critique method: independent design review (`design_review`) and evidence review
+(`evidence_review`), followed by local browser inspection and the single requested
+source detector pass. The incumbent story/action/reference structure is specific
+to incident response and worth preserving. Empty and Diagnose already give clear
+orientation; diagnosis badges are aligned and muted text passes contrast
+(6.02:1 on surface, 5.63:1 on raised). No palette or badge changes were justified.
+Fix has cramped action spacing; Setup question rows and metadata need hierarchy.
+Provisional heuristic scores (0–4): status 3, real-world match 4, control 3,
+consistency 3, prevention 3, recognition 3, efficiency 2, minimalism 3,
+recovery 3, help 3; total **30/40**. The main risk for an outage responder is
+missing action controls below the pinned pane's fold; dense Setup rows make
+scanning harder for a low-vision reader. Scope was already specified, so no
+additional design-direction questions were needed.
+
+Four visual fixes:
+
+1. Reset the Your turn heading's bottom margin inside its icon row; the icon
+   now aligns with the heading instead of its extra margin box.
+2. Tighten command, decision-rule and result-form gaps to an 8/12px rhythm,
+   recovering space in the pinned action card without changing its scroll cap.
+3. Add 4px between Setup question rows, separating required/optional questions
+   while retaining the existing cards and grid.
+4. Restore the 16px step-title scale in Plan and Your turn; use 13px muted Setup
+   metadata and stronger subsection headings so tasks and configuration groups
+   are easier to scan.
+
+Motion:
+
+- The first live `triage_result` transfer advances the existing tracker to Fix
+  and opens Plan together. A single 700ms Animated Beam connects Diagnose to
+  Fix, then unmounts. Its gradient travels along the measured connection,
+  rather than across the entire container. The SVG is hidden from assistive tech.
+- Reduced motion gets the same immediate stage/tab update without a beam.
+  Initial checkpoints, refreshes, tab changes and re-assessments do not replay it.
+- Removed confidence number roll-up/bar fill and the Triage card layout spring;
+  these animated static assessment data. Removed the topology beam that replayed
+  on tab mounts and pulses on historical activity rows. Kept purposeful affected
+  node/check-order indication, panel scrolling and dialog/drawer orientation.
+
+Validation (offline):
+
+- `npm --prefix app/web run build`: PASS, run once. Existing non-fatal Vite
+  chunk-size advisory remains (534.18 kB JavaScript before gzip).
+- `npm --prefix app/web run lint`: PASS, run once.
+- `npm_config_offline=true npx impeccable detect app/web/src`: run once using
+  the cached CLI; exit 2 for one `overused-font` finding at `src/index.css:3`.
+  Geist is explicitly required by DESIGN.md, so it remains. Source scanning
+  uses regex and does not establish rendered contrast or accessibility.
+- `npm --prefix app/web run test`: 9 PASS, including two new hand-off checks
+  for normal/reduced motion, one-shot playback and no replay after refresh.
+- Final fake-HTTP/SSE browser capture checked empty, Setup and Fix at
+  1440/1280/960px, plus diagnosis content and the actual Diagnose stage.
+  No horizontal document overflow or browser page errors. Verified the beam
+  visually after correcting its connection-relative gradient and final markup.
+  Captures are in `.cache/polish-*.png`. An initial capture script tried the
+  hidden desktop Diagnosis tab at 960px; corrected that script to inspect the
+  desktop tab only at supported widths, then completed the capture pass.
+- Your turn retains internal scrolling for long steps; small viewports can
+  still require scrolling to reach all result controls. Changing pane sizing
+  or interaction belongs to a later layout/UX task.
+- Vite was started once and stopped. No live model/provider calls, dependency
+  downloads, backend changes or remote writes.
+
+Run locally: `npm --prefix app/web run dev` with the existing local API, or start
+Vite and run `npm --prefix app/web run test` for intercepted synthetic HTTP/SSE.
+Next: review the polished incident flow with representative longer plans; treat
+any pane-sizing or navigation changes as a separate scoped step.

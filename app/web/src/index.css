@@ -44,10 +44,6 @@
 .dialog .how-it-works { margin-top:0; }
 .empty { margin-top:32px; }
 .step-details { overflow-wrap:anywhere; }
-@keyframes activity-pulse { 0%,100% { opacity:.4; } 50% { opacity:1; } }
-.activity-pulse { animation:activity-pulse 2.4s ease-in-out infinite; }
-@media(prefers-reduced-motion:reduce) { .activity-pulse { animation:none; } }
-
 /* Repository configuration and knowledge: read-only reference surfaces. */
 .shell:has(.catalog-workspace) { grid-template-columns:var(--rail) minmax(0,1fr); }
 .catalog-page { padding:24px 32px 48px; overflow:auto; flex:1; }
@@ -75,3 +71,17 @@
 .knowledge-link { color:var(--accent); text-decoration:underline; text-underline-offset:3px; }
 .stage-tracker .stage-skipped { color:var(--text-muted); }
 .record-summary { font-size:13px; overflow-wrap:anywhere; }
+
+/* Step 5d: keep the existing composition; refine hierarchy and local rhythm. */
+.action-card .action-heading { margin-bottom:12px; }
+.action-card .action-heading h2 { margin:0; }
+.step h3,.action-card > h3 { font-size:var(--card-title); font-weight:500; }
+.your-turn .step-details .command { margin:8px 0; }
+.your-turn .step-details > .hint:last-child { margin:8px 0; }
+.step-result-form { margin-top:12px; }
+.step-result-form > * + * { margin-top:12px; }
+.step-result-form > .label { margin-bottom:0; }
+.config-question + .config-question { margin-top:4px; }
+.config-metadata { font-size:var(--dense); color:var(--text-muted); }
+.config-card h4 { font-size:var(--body); font-weight:600; margin-top:24px; }
+.handoff-beam { overflow:visible; }

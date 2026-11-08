@@ -52,20 +52,18 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
   const [pathD, setPathD] = useState("")
   const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 })
 
-  // Calculate the gradient coordinates based on the reverse prop
-  const gradientCoordinates = reverse
-    ? {
-        x1: ["90%", "-10%"],
-        x2: ["100%", "0%"],
-        y1: ["0%", "0%"],
-        y2: ["0%", "0%"],
-      }
-    : {
-        x1: ["10%", "110%"],
-        x2: ["0%", "100%"],
-        y1: ["0%", "0%"],
-        y2: ["0%", "0%"],
-      }
+  const [endpoints, setEndpoints] = useState({ from: 0, to: 0, y: 0 })
+  // Travel along the actual connection, rather than across the full container.
+  const length = Math.max(Math.abs(endpoints.to - endpoints.from), 1)
+  const start = reverse ? endpoints.to : endpoints.from
+  const end = reverse ? endpoints.from : endpoints.to
+  const direction = end >= start ? 1 : -1
+  const gradientCoordinates = {
+    x1: [start, end + direction * length],
+    x2: [start - direction * length, end],
+    y1: [endpoints.y, endpoints.y],
+    y2: [endpoints.y, endpoints.y],
+  }
 
   useEffect(() => {
     const updatePath = () => {
@@ -87,6 +85,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
         const endY =
           rectB.top - containerRect.top + rectB.height / 2 + endYOffset
 
+        setEndpoints({ from: startX, to: endX, y: startY })
         const controlY = startY - curvature
         const d = `M ${startX},${startY} Q ${
           (startX + endX) / 2
@@ -125,6 +124,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({
 
   return (
     <svg
+      aria-hidden="true"
       fill="none"
       width={svgDimensions.width}
       height={svgDimensions.height}
