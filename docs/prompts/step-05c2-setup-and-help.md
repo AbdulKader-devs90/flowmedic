@@ -61,7 +61,17 @@ Read DESIGN.md ("Setup page", "Knowledge page", Principles 6–7) first.
    - (d) Topology edges run from the bottom centre of one node to the top centre of the next, and all node labels use the same font size.
    - (e) Skip any acronym or label fixes that Step 5c-1 already covered.
 
-7. **First visit.** Open the "How FlowMedic works" dialog automatically the first time the app loads. Remember this in localStorage, wrapped in try/catch; the "?" button always reopens it.
+7. **Found in the 5c-1 live walkthrough (SC-001, a CPU incident without logs, KONG-SC-01):**
+   - (a) During a re-triage after a step result, the status line says "Planner agent is assessing root causes". It should name the Triage agent: "Triage agent is re-assessing root causes".
+   - (b) Stage tracker: do not tick "Logs" when no logs were approved (show it as skipped, with a muted dash and the tooltip "No logs were provided"). Do not tick "Fix" when the incident closed without a plan.
+   - (c) The save card shows a raw JSON record. Show a readable summary instead: outcome, root causes, signatures, the steps that worked (with their results), platform/version/environment. Put the JSON under a collapsed "Show raw record". When the outcome is escalate and no step worked, title the card "Save an escalation note?" and add one sentence: "Nothing was fixed in this session. Saving keeps a record for the next engineer; it is not a known fix."
+   - (d) Replace "inspector" in user-facing text with "the panels on the right".
+   - (e) Story paths: "Log access approved (...)" must use the repo-relative path too (see 6a).
+   - (f) Before triage finishes, the severity pill reads "Unrated". Show "Triaging" instead.
+   - (g) After a re-plan, prefix story rows with the plan version ("Plan 2 · Step 1 done: …") so step numbers do not look duplicated.
+   - (h) The diagnosis notes repeat the same sentence ("No log folder supplied; request an approved diagnostic export." twice). Remove exact duplicates when displaying them.
+
+8. **First visit.** Open the "How FlowMedic works" dialog automatically the first time the app loads. Remember this in localStorage, wrapped in try/catch; the "?" button always reopens it.
 
 Checks, run once at the end:
 ```
