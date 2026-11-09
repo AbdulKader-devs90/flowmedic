@@ -1,0 +1,3 @@
+2026-11-10 09:14:02 GST [ISS.0128.0004E] (tid=318) ISInternal pool: Login has timed out after 30 s; fail-fast mode enabled for pool ISInternal
+2026-11-10 09:14:05 GST [ISS.0128.0004E] (tid=322) ISCoreAudit pool: threshold exceeded, 0 available, 25 in use
+2026-11-10 09:14:31 GST [ISS.0128.0004E] (tid=340) ISInternal pool: Login has timed out after 30 s

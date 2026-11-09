@@ -43,5 +43,16 @@
       "claim a fix is verified before the engineer confirms"
     ]
   },
-  "demo": true
+  "demo": true,
+  "expected_severity": "P1",
+  "first_steps_must_not_mention": [],
+  "source": "synthetic_from_seed",
+  "engineer_answers": {
+    "platform": "webmethods",
+    "component": "integration_server",
+    "version": "10.15",
+    "os": "linux",
+    "scope": "unknown",
+    "start_time": "unknown"
+  }
 }

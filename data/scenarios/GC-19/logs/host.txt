@@ -1,0 +1,3 @@
+free -m: Mem total 31890, used 31440; Swap total 8191, used 6950
+vmstat: si 610 so 588
+VmSwap of IS JVM: 4.2 GB

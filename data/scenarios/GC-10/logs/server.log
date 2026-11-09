@@ -1,0 +1,3 @@
+2026-11-10 16:05:11 GST [ART.0118.5036W] (tid=9120) Adapter Runtime (Pooling): Connection pool PaymentsDB_Pool threshold exceeded, 0 available, 20 in use, max 20
+2026-11-10 16:05:21 GST [ART.0118.5053E] (tid=9133) Adapter Runtime (Connection): Unable to get a connection to resource PaymentsApi.connections:PaymentsDB_Pool. Block timeout of 10000 ms expired.
+2026-11-10 16:06:02 GST [ART.0118.5053E] (tid=9150) Adapter Runtime (Connection): Unable to get a connection to resource PaymentsApi.connections:PaymentsDB_Pool. Block timeout of 10000 ms expired.

@@ -1,0 +1,2 @@
+2026-11-10 10:40:12 GST [ART.0118.5036W] (tid=4421) Adapter Runtime (Pooling): Connection pool OrdersDB_Pool threshold exceeded, 0 available, 15 in use, max 15
+2026-11-10 10:40:22 GST [ART.0118.5053E] (tid=4433) Adapter Runtime (Connection): Unable to get a connection to resource OrdersApi.connections:OrdersDB_Pool. Block timeout of 10000 ms expired.

@@ -1,0 +1,2 @@
+2026-11-10 10:01:02 GST [ISS.0153.0091W] (tid=8801) JMS trigger Billing.triggers:onInvoice: channel object is obsolete, reconnecting
+2026-11-10 10:01:03 GST [ISS.0153.0091W] (tid=8802) JMS trigger Billing.triggers:onInvoice: channel object is obsolete, reconnecting

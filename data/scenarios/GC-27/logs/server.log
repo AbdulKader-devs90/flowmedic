@@ -1,0 +1,2 @@
+2026-11-10 13:20:40 GST [ART.0118.5036W] (tid=5520) Adapter Runtime (Pooling): Connection pool ClaimsDB_Pool threshold exceeded, 0 available, 10 in use, max 10
+2026-11-10 13:20:50 GST [ART.0118.5053E] (tid=5533) Adapter Runtime (Connection): Unable to get a connection to resource ClaimsApi.connections:ClaimsDB_Pool. Block timeout of 10000 ms expired.

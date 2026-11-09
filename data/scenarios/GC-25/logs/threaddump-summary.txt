@@ -1,0 +1,3 @@
+is-node-a 07:12 (311 threads)
+  262  HTTP Handler  WAITING  at oracle.jdbc.driver.T4CPreparedStatement.executeForRows (Audit.db:insertEntry)
+   49  other

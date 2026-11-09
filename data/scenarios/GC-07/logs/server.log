@@ -1,0 +1,2 @@
+2026-11-10 08:01:03 GST [ISS.0084.9004E] (tid=5120) is-node-b: Access is denied to service PartnerApi.v1:submit for token client partner-17: token signature not trusted
+2026-11-10 08:01:03 GST [ISP.0090.0001I] (tid=5120) is-node-b: HTTP 401 returned to 10.0.1.40

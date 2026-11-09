@@ -1,0 +1,5 @@
+SID  SERIAL  STATUS  EVENT                           BLOCKING_SESSION  SECONDS_IN_WAIT
+1288 4411    ACTIVE  enq: TX - row lock contention   902               311
+1301 1187    ACTIVE  enq: TX - row lock contention   902               298
+1317 9020    ACTIVE  enq: TX - row lock contention   902               260
+902  33      INACTIVE SQL*Net message from client    -                 4120

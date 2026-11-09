@@ -1,0 +1,2 @@
+2026/11/10 10:00:31 [warn] 1310#0: *14 [lua] healthcheck.lua: log(): [healthcheck] (payments-upstream) unhealthy TCP increment (3/3) for 'payments-svc(10.0.2.70:8090)'
+2026/11/10 10:00:40 [error] 1310#0: *1022 failure to get a peer from the ring-balancer, client: 10.0.1.31, server: kong, request: "POST /payments/v1/charge HTTP/1.1", host: "api.example.local"

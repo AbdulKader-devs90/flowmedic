@@ -1,0 +1,2 @@
+2026-11-10 09:00:12 GST [ISS.0088.9134E] (tid=3120) LoyaltyApi.client:getPoints failed: java.net.ConnectException: Connection refused (Connection refused) to http://10.0.0.77:9090/loyalty/points
+2026-11-10 09:00:44 GST [ART.0118.5021I] (tid=3121) Adapter Runtime: connection LoyaltyApi.connections:LoyaltyDB test succeeded

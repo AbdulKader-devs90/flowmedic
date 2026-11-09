@@ -1,0 +1,4 @@
+SID  STATUS   EVENT                          BLOCKING_SESSION  SECONDS_IN_WAIT
+2201 ACTIVE   enq: TX - row lock contention  77                1880
+2210 ACTIVE   enq: TX - row lock contention  77                1874
+77   INACTIVE SQL*Net message from client    -                 9120   (machine is-node-a, left from a forced restart)

@@ -1,0 +1,1 @@
+2026/11/10 13:30:12 [error] 1301#0: *8812 upstream timed out (110: Connection timed out) while reading response header from upstream, client: 10.0.1.44, server: kong, request: "POST /inventory/v1/reserve HTTP/1.1", upstream: "http://10.0.2.45:8080/reserve", host: "api.example.local"

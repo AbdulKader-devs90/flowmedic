@@ -1,0 +1,1 @@
+2026-11-10 09:40:02 GST [ISS.0088.9134E] (tid=4120) PartnerApi.client:send failed: javax.net.ssl.SSLHandshakeException: PKIX path building failed: unable to find valid certification path to requested target

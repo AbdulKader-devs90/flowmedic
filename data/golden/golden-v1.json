@@ -1,0 +1,205 @@
+{
+  "version": "golden-v1",
+  "cases": [
+    {
+      "case_id": "SC-001",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-002",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-003",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-004",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-005",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-006",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-007",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-008",
+      "scenario_type": "known_failure",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-009",
+      "scenario_type": "adversarial",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "SC-010",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "KONG-SC-01",
+      "scenario_type": "happy",
+      "platform": "kong"
+    },
+    {
+      "case_id": "KONG-SC-02",
+      "scenario_type": "edge",
+      "platform": "kong"
+    },
+    {
+      "case_id": "GC-01",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-02",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-03",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-04",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-05",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-06",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-07",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-08",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-09",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-10",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-11",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-12",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-13",
+      "scenario_type": "happy",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-14",
+      "scenario_type": "happy",
+      "platform": "kong"
+    },
+    {
+      "case_id": "GC-15",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-16",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-17",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-18",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-19",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-20",
+      "scenario_type": "edge",
+      "platform": "kong"
+    },
+    {
+      "case_id": "GC-21",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-22",
+      "scenario_type": "edge",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-23",
+      "scenario_type": "known_failure",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-24",
+      "scenario_type": "known_failure",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-25",
+      "scenario_type": "known_failure",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-26",
+      "scenario_type": "known_failure",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-27",
+      "scenario_type": "known_failure",
+      "platform": "webmethods"
+    },
+    {
+      "case_id": "GC-28",
+      "scenario_type": "adversarial",
+      "platform": "webmethods"
+    }
+  ]
+}

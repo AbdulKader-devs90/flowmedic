@@ -1,0 +1,2 @@
+2026-11-10 03:22:10 GST | ERROR  | jvm 1 | java.lang.OutOfMemoryError: Java heap space
+2026-11-10 03:22:14 GST | STATUS | wrapper | JVM exited unexpectedly; restarting

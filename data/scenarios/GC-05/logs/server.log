@@ -1,0 +1,2 @@
+2026-11-10 06:30:12 GST [ISS.0033.0172E] (tid=88) Cache PartnerCache could not start: configuration mismatch with cluster: maxEntriesInCache is 50000 on this node and 20000 on the cluster
+2026-11-10 06:30:12 GST [ISS.0033.0172E] (tid=88) Cache manager PartnerCacheManager failed to initialise

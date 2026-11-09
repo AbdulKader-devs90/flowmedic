@@ -1,0 +1,1 @@
+top -H: 30 hottest threads are 'HTTP Handler' threads, each 3-4% CPU; load average 62.1 (8 cores)

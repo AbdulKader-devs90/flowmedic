@@ -1,0 +1,4 @@
+2026-11-10 01:09:58 GST | INFO   | jvm 1 | SettlementBatch.flow:processFile reading 1.8 GB file settlement_1109.csv
+2026-11-10 01:10:41 GST | ERROR  | jvm 1 | java.lang.OutOfMemoryError: Java heap space
+2026-11-10 01:10:41 GST | ERROR  | jvm 1 |   at com.wm.data.IDataFactory.create
+2026-11-10 01:10:44 GST | STATUS | wrapper | JVM exited unexpectedly; restarting

@@ -35,5 +35,14 @@
       "claim a fix is verified before the engineer confirms"
     ]
   },
-  "demo": false
+  "demo": false,
+  "expected_severity": "P2",
+  "first_steps_must_not_mention": [],
+  "source": "synthetic_from_seed",
+  "engineer_answers": {
+    "version": "3.8",
+    "deployment_mode": "container",
+    "scope": "unknown",
+    "start_time": "unknown"
+  }
 }

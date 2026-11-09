@@ -1,0 +1,4 @@
+2026-11-10 07:02:10 GST [ART.0118.5053E] (tid=2210) Adapter Runtime (Connection): Unable to get a connection to resource InvoicesApi.connections:InvoicesDB. Block timeout of 10000 ms expired.
+2026-11-10 07:02:10 GST [ART.0117.4012E] (tid=2210) Adapter Runtime (Adapter Service): Unable to run adapter service InvoicesApi.db:selectInvoice.
+2026-11-10 07:02:10 GST [ART.0114.1007E] (tid=2210) java.sql.SQLException: ORA-01017: invalid username/password; logon denied
+2026-11-10 07:05:44 GST [ART.0117.4012E] (tid=2231) Adapter Runtime (Adapter Service): Unable to run adapter service InvoicesApi.db:selectInvoice.

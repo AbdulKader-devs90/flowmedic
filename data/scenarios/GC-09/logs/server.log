@@ -1,0 +1,2 @@
+2026-11-10 14:00:33 GST [ISS.0088.9134E] (tid=6611) ShippingApi.client:createLabel failed: java.net.ConnectException: Connection refused (Connection refused) to http://10.0.0.61:8443/labels
+2026-11-10 14:02:10 GST [ISS.0088.9134E] (tid=6640) ShippingApi.client:createLabel failed: java.net.ConnectException: Connection refused (Connection refused) to http://10.0.0.61:8443/labels

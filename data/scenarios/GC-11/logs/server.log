@@ -1,0 +1,2 @@
+2026-11-10 05:48:10 GST [ISS.0128.0011E] (tid=211) Audit logging failed: ORA-01654: unable to extend index WMDOCHIST.IDX_DOCID by 128 in tablespace WM_AUDIT
+2026-11-10 05:48:12 GST [ISS.0128.0011E] (tid=213) Audit logging failed: ORA-01654: unable to extend index WMDOCHIST.IDX_DOCID by 128 in tablespace WM_AUDIT
